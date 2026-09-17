@@ -1,4 +1,4 @@
-import { createDeepAgent } from "deepagents";
+import { createDeepAgent, type DeepAgent } from "deepagents";
 import { MemorySaver } from "@langchain/langgraph-checkpoint";
 import { ChatOpenRouter } from "@langchain/openrouter";
 import { tool } from "langchain/tools";
@@ -63,7 +63,10 @@ export interface AgentRunContext {
  * Creates a DeepAgent configured for guitar-neck.
  * Each call creates a fresh agent with the given context.
  */
-export function createGuitarAgent(config: AgentConfig) {
+export function createGuitarAgent(config: AgentConfig): {
+  buildAgent: (ctx: AgentRunContext) => DeepAgent<any>;
+  checkpointSaver: MemorySaver;
+} {
   const llm = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model ?? "deepseek/deepseek-v4-flash",
@@ -83,11 +86,11 @@ export function createGuitarAgent(config: AgentConfig) {
     });
 
     return createDeepAgent({
-      llm,
+      model: llm,
       tools: [...domainTools, waitForUserTool],
       interruptOn: { wait_for_user: true },
       systemPrompt: BASE_SYSTEM_PROMPT,
-      checkpointSaver,
+      checkpointer: checkpointSaver,
     });
   }
 
@@ -97,7 +100,10 @@ export function createGuitarAgent(config: AgentConfig) {
 /**
  * Creates a lesson agent with the lesson-specific system prompt.
  */
-export function createLessonAgent(config: AgentConfig) {
+export function createLessonAgent(config: AgentConfig): {
+  buildAgent: (ctx: AgentRunContext) => DeepAgent<any>;
+  checkpointSaver: MemorySaver;
+} {
   const llm = new ChatOpenRouter({
     apiKey: config.apiKey,
     model: config.model ?? "deepseek/deepseek-v4-flash",
@@ -113,11 +119,11 @@ export function createLessonAgent(config: AgentConfig) {
     });
 
     return createDeepAgent({
-      llm,
+      model: llm,
       tools: [...domainTools, waitForUserTool],
       interruptOn: { wait_for_user: true },
       systemPrompt: LESSON_SYSTEM_PROMPT,
-      checkpointSaver,
+      checkpointer: checkpointSaver,
     });
   }
 
