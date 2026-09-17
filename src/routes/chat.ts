@@ -15,32 +15,35 @@ chatRouter.post("/", async (req, res) => {
     lessonMode,
   } = req.body as ChatRequestBody;
 
-  const ctx: AgentRunContext = {
-    domainState,
-    commands: [],
+  const emit = (event: ChatResponseEvent) => {
+    res.write(JSON.stringify(event) + "\n");
   };
 
-  const agent = createAgent(ctx, lessonMode);
+  const ctx: AgentRunContext = {
+    domainState,
+    emitCommand: (command) => {
+      emit({
+        type: "domain-command",
+        command,
+      });
+    },
+  };
+
+  const agent = createAgent(ctx, lessonMode, {
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    model: process.env.OPENROUTER_MODEL!,
+  });
 
   res.setHeader("Content-Type", "application/x-ndjson");
   res.setHeader("Cache-Control", "no-cache");
 
-  const emit = (event: ChatResponseEvent) => {
-    res.write(JSON.stringify(event) + "\n");
-  };
+
 
   try {
     const input =
       type === "resume"
         ? new Command({
-          resume: {
-            decisions: [
-              {
-                type: "respond",
-                message: text,
-              },
-            ],
-          },
+          resume: text,
         })
         : {
           messages: [new HumanMessage(text)],
@@ -54,19 +57,23 @@ chatRouter.post("/", async (req, res) => {
       },
     );
 
+    let finalText = "";
     for await (const message of stream.messages) {
+      let currentText = "";
+
       for await (const token of message.text) {
-        emit({
-          type: "token",
-          text: token,
-        });
+        currentText += token;
+      }
+
+      if (currentText.trim()) {
+        finalText = currentText;
       }
     }
 
-    for (const command of ctx.commands) {
+    if (finalText) {
       emit({
-        type: "domain-command",
-        command,
+        type: "token",
+        text: finalText,
       });
     }
 

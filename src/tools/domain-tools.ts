@@ -1,6 +1,7 @@
 import { tool } from "langchain/tools";
 import { z } from "zod";
 import { DomainCommand, DomainState } from "../types/contract";
+import { interrupt } from "@langchain/langgraph";
 interface ToolContext {
   domainState: DomainState;
   emitCommand: (command: DomainCommand) => void;
@@ -85,15 +86,17 @@ type StartExerciseInput = z.infer<typeof startExerciseSchema>;
 
 // #endregion
 export const waitForUserTool = tool(
-  async ({ prompt }) => prompt,
+  async ({ prompt }) => {
+    return interrupt({ prompt });
+  },
   {
     name: "wait_for_user",
-    description: "Zatrzymuje lekcję po jednym kroku dydaktycznym i czeka na odpowiedź użytkownika.",
+    description: "Zatrzymuje lekcję i czeka na odpowiedź użytkownika.",
     schema: z.object({
       prompt: z.string(),
     }),
-  },
-)
+  }
+);
 export function createDomainTools(ctx: ToolContext) {
   return [
     tool(
@@ -113,7 +116,6 @@ export function createDomainTools(ctx: ToolContext) {
           patternType: input.patternType,
           patternName: input.patternName,
           rootNote: input.rootNote,
-          message: `Pokazano ${input.patternType} ${input.patternName} (${input.rootNote})`,
         };
       },
       {
@@ -131,7 +133,6 @@ export function createDomainTools(ctx: ToolContext) {
           action: "show-interval",
           rootNote: input.rootNote,
           interval: input.interval,
-          message: `Pokazano interwał ${input.interval} od ${input.rootNote}`
         };
       },
       {
@@ -145,7 +146,6 @@ export function createDomainTools(ctx: ToolContext) {
         ctx.emitCommand({ type: "clear-view" });
         return {
           action: "clear-view",
-          message: "Widok wyczyszczony",
         };
       },
       {
@@ -159,12 +159,10 @@ export function createDomainTools(ctx: ToolContext) {
       async () => {
         const result = ctx.domainState;
         return {
-          success: true,
           action: "get-current-view",
           mode: result.mode,
           rootNote: result.rootNote,
           patternName: result.patternName,
-          message: `Aktualny widok: ${result.mode} ${result.patternName} (${result.rootNote})`,
         };
       },
       {
@@ -187,7 +185,6 @@ export function createDomainTools(ctx: ToolContext) {
           action: "compare-patterns",
           primary: input.primary,
           secondary: input.secondary,
-          message: `Porównano ${input.primary.patternName} (${input.primary.rootNote}) z ${input.secondary.patternName} (${input.secondary.rootNote})`
         };
       },
       {
@@ -208,7 +205,6 @@ export function createDomainTools(ctx: ToolContext) {
         ctx.emitCommand(command);
         return {
           action: "set-view",
-          message: "Widok zaktualizowany",
         };
       },
       {
@@ -228,7 +224,6 @@ export function createDomainTools(ctx: ToolContext) {
         return {
           action: "set-emphasis",
           emphasis: input.emphasis,
-          message: `Ustawiono emphasis: ${JSON.stringify(input.emphasis)}`
         };
       },
       {
@@ -251,7 +246,6 @@ export function createDomainTools(ctx: ToolContext) {
           action: "resolve-shape",
           shapeId: input.shapeId,
           rootNote: input.rootNote,
-          message: `Pokazano kształt ${input.shapeId}${input.rootNote ? ` (${input.rootNote})` : ''}`
         };
       },
       {
@@ -271,7 +265,6 @@ export function createDomainTools(ctx: ToolContext) {
         return {
           action: "set-ai-mode",
           enabled: input.enabled,
-          message: (input.enabled ? "Tryb AI włączony" : "Tryb AI wyłączony")
         };
       },
       {
@@ -294,12 +287,10 @@ export function createDomainTools(ctx: ToolContext) {
         ctx.emitCommand(command);
 
         return {
-          success: true,
           action: "start-exercise",
           question: input.question,
           rootNote: input.rootNote,
           expectedIntervals: input.expectedIntervals,
-          message: `Rozpoczęto ćwiczenie: ${input.question}`,
         };
       },
       {
@@ -308,22 +299,7 @@ export function createDomainTools(ctx: ToolContext) {
         schema: startExerciseSchema,
       }
     ),
-    //submit-exercise
-    tool(
-      async () => {
-        ctx.emitCommand({ type: "submit-exercise" });
 
-        // Read the exercise result from state
-        return {
-          action: "submit-exercise",
-        };
-      },
-      {
-        name: "submit_exercise",
-        description: "Zatwierdza aktualne ćwiczenie do sprawdzenia. Aplikacja weryfikuje zaznaczone nuty i zwraca wynik. Użyj po tym jak użytkownik zaznaczy nuty i kliknie Sprawdź.",
-        schema: z.object({}),
-      }
-    ),
     //get-exercise-result
     tool(
       async () => {
@@ -336,9 +312,6 @@ export function createDomainTools(ctx: ToolContext) {
           exerciseTask: state.exerciseTask,
           selectedNotes: state.selectedNotes,
           lastExerciseResult: exerciseResult,
-          message: exerciseResult
-            ? `Ćwiczenie sprawdzone. Poprawne: ${exerciseResult.correctCount}, błędne: ${exerciseResult.incorrectCount}`
-            : "Ćwiczenie sprawdzone.",
         };
       },
       {
