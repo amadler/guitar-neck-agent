@@ -1,110 +1,87 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
-import { createGuitarAgent, createLessonAgent, type AgentRunContext } from "../agent.js";
-import type { ChatRequestBody, ChatResponseEvent, DomainState } from "../types/contract.js";
+import { createAgent, type AgentRunContext } from "../agent.js";
+import type { ChatRequestBody, ChatResponseEvent } from "../types/contract.js";
 
-// ─── Default DomainState ──────────────────────────────────────────────
+export const chatRouter = Router();
 
-const DEFAULT_DOMAIN_STATE: DomainState = {
-  mode: "scale",
-  aiModeEnabled: false,
-  displayMode: null,
-  rootNote: "C",
-  patternName: "major",
-  fretRange: { min: 0, max: 24 },
-  enabledStrings: [true, true, true, true, true, true],
-  markerDisplayMode: "interval-colors",
-  exerciseMode: false,
-};
+chatRouter.post("/", async (req, res) => {
+  const {
+    type,
+    threadId,
+    text,
+    domainState,
+    lessonMode,
+  } = req.body as ChatRequestBody;
 
-// ─── Router ───────────────────────────────────────────────────────────
+  const ctx: AgentRunContext = {
+    domainState,
+    commands: [],
+  };
 
-export function createChatRouter(apiKey: string, model?: string) {
-  const router = Router();
-  const agentFactory = createGuitarAgent({ apiKey, model });
-  const lessonFactory = createLessonAgent({ apiKey, model });
+  const agent = createAgent(ctx, lessonMode);
 
-  router.post("/", async (req: Request, res: Response) => {
-    const body = req.body as ChatRequestBody;
-    const { type, threadId, text, domainState, lessonId } = body;
+  res.setHeader("Content-Type", "application/x-ndjson");
+  res.setHeader("Cache-Control", "no-cache");
 
-    if (!threadId || !text) {
-      res.status(400).json({ error: "Missing required fields: threadId, text" });
-      return;
+  const emit = (event: ChatResponseEvent) => {
+    res.write(JSON.stringify(event) + "\n");
+  };
+
+  try {
+    const input =
+      type === "resume"
+        ? new Command({
+          resume: {
+            decisions: [
+              {
+                type: "respond",
+                message: text,
+              },
+            ],
+          },
+        })
+        : {
+          messages: [new HumanMessage(text)],
+        };
+
+    const stream = await agent.streamEvents(
+      input,
+      {
+        configurable: { thread_id: threadId },
+        version: "v3",
+      },
+    );
+
+    for await (const message of stream.messages) {
+      for await (const token of message.text) {
+        emit({
+          type: "token",
+          text: token,
+        });
+      }
     }
 
-    // Set up NDJSON streaming headers
-    res.setHeader("Content-Type", "application/x-ndjson");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no"); // Disable nginx buffering
-
-    // Helper: write an NDJSON event
-    const emit = (event: ChatResponseEvent) => {
-      res.write(JSON.stringify(event) + "\n");
-    };
-
-    try {
-      // Build the run context with the DomainState snapshot (request-scoped)
-      const ctx: AgentRunContext = {
-        domainState: domainState ?? DEFAULT_DOMAIN_STATE,
-        commands: [],
-      };
-
-      // Choose agent based on lesson mode
-      const isLesson = Boolean(lessonId);
-      const { buildAgent, checkpointSaver } = isLesson ? lessonFactory : agentFactory;
-      const agent = buildAgent(ctx);
-
-      // Determine the input to the agent
-      let agentInput;
-      if (type === "resume") {
-        agentInput = new Command({ resume: text });
-      } else {
-        agentInput = { messages: [new HumanMessage(text)] };
-      }
-
-      // Run the agent and stream events
-      const stream = await agent.streamEvents(
-        agentInput,
-        {
-          configurable: { thread_id: threadId },
-          version: "v3",
-        },
-      );
-
-      // Consume the stream
-      for await (const message of stream.messages) {
-        let accumulated = "";
-        for await (const token of message.text) {
-          accumulated += token;
-          emit({ type: "token", text: accumulated });
-        }
-      }
-
-      for await (const call of stream.toolCalls) {
-        emit({ type: "token", text: `🔧 Używam narzędzia: ${call.name}...` });
-        await call.output;
-      }
-
-      // Emit any DomainCommands collected by tools
-      for (const command of ctx.commands) {
-        emit({ type: "domain-command", command });
-      }
-
-      // Emit interrupt status
-      const waitingForUser = Boolean(stream.interrupted);
-      emit({ type: "interrupt", waitingForUser });
-
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Unknown error";
-      emit({ type: "error", message: errorMsg });
-    } finally {
-      emit({ type: "done" });
-      res.end();
+    for (const command of ctx.commands) {
+      emit({
+        type: "domain-command",
+        command,
+      });
     }
-  });
 
-  return router;
-}
+    emit({
+      type: "interrupt",
+      waitingForUser: Boolean(stream.interrupted),
+    });
+
+    emit({ type: "done" });
+  } catch (err) {
+    emit({
+      type: "error",
+      message: err instanceof Error ? err.message : "Unknown error",
+    });
+  } finally {
+    res.end();
+  }
+});

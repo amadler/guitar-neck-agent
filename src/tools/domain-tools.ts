@@ -1,14 +1,20 @@
 import { tool } from "langchain/tools";
 import { z } from "zod";
-import type { DomainCommand, DomainState, ChatResponseEvent } from "../types/contract.js";
+import { DomainCommand, DomainState } from "../types/contract";
+interface ToolContext {
+  domainState: DomainState;
+  emitCommand: (command: DomainCommand) => void;
+}
 
-// ─── Schemas ──────────────────────────────────────────────────────────
-
+// #region Zod schemas
 const showPatternSchema = z.object({
   patternType: z.enum(["scale", "chord"]).describe("Typ patternu: 'scale' dla skali, 'chord' dla akordu"),
   patternName: z.string().describe("Nazwa patternu, np. 'major', 'minor', 'pentatonic major'"),
   rootNote: z.string().describe("Nuta podstawowa, np. 'C', 'A', 'G', 'D'"),
-  fretRange: z.object({ min: z.number().min(0).max(24), max: z.number().min(0).max(24) }).optional().describe("Opcjonalny zakres progów"),
+  fretRange: z.object({
+    min: z.number().min(0).max(24),
+    max: z.number().min(0).max(24),
+  }).optional().describe("Opcjonalny zakres progów"),
   emphasis: z.object({
     intervals: z.array(z.string()).optional().describe("Interwały do podświetlenia, np. ['1', '3', '5']"),
     roles: z.array(z.string()).optional().describe("Role do podświetlenia, np. ['root', 'third']"),
@@ -25,35 +31,38 @@ type ShowIntervalInput = z.infer<typeof showIntervalSchema>;
 const comparePatternsSchema = z.object({
   primary: z.object({
     patternType: z.enum(["scale", "chord"]).describe("Typ pierwszego patternu"),
-    patternName: z.string().describe("Nazwa pierwszego patternu"),
-    rootNote: z.string().describe("Nuta podstawowa pierwszego patternu"),
+    patternName: z.string().describe("Nazwa pierwszego patternu, np. 'major', 'minor'"),
+    rootNote: z.string().describe("Nuta podstawowa pierwszego patternu, np. 'C', 'A'"),
   }),
   secondary: z.object({
     patternType: z.enum(["scale", "chord"]).describe("Typ drugiego patternu"),
-    patternName: z.string().describe("Nazwa drugiego patternu"),
-    rootNote: z.string().describe("Nuta podstawowa drugiego patternu"),
+    patternName: z.string().describe("Nazwa drugiego patternu, np. 'major', 'minor'"),
+    rootNote: z.string().describe("Nuta podstawowa drugiego patternu, np. 'C', 'A'"),
   }),
 });
 type ComparePatternsInput = z.infer<typeof comparePatternsSchema>;
 
 const setViewSchema = z.object({
-  fretRange: z.object({ min: z.number().min(0).max(24), max: z.number().min(0).max(24) }).optional().describe("Opcjonalny zakres progów"),
-  enabledStrings: z.array(z.boolean()).length(6).optional().describe("Opcjonalnie które struny są aktywne"),
+  fretRange: z.object({
+    min: z.number().min(0).max(24),
+    max: z.number().min(0).max(24),
+  }).optional().describe("Opcjonalny zakres progów"),
+  enabledStrings: z.array(z.boolean()).length(6).optional().describe("Opcjonalnie które struny są aktywne (6 elementów)"),
   markerDisplayMode: z.enum(["interval-colors", "note-names", "neutral-dots"]).optional().describe("Tryb wyświetlania markerów"),
 });
 type SetViewInput = z.infer<typeof setViewSchema>;
 
 const setEmphasisSchema = z.object({
   emphasis: z.object({
-    intervals: z.array(z.string()).optional().describe("Interwały do podświetlenia"),
-    roles: z.array(z.string()).optional().describe("Role do podświetlenia"),
+    intervals: z.array(z.string()).optional().describe("Interwały do podświetlenia, np. ['1', '3', '5']"),
+    roles: z.array(z.string()).optional().describe("Role do podświetlenia, np. ['root', 'third']"),
   }),
 });
 type SetEmphasisInput = z.infer<typeof setEmphasisSchema>;
 
 const resolveShapeSchema = z.object({
   shapeId: z.string().describe("ID kształtu, np. 'cowboy-C', 'barre-E-form'"),
-  rootNote: z.string().optional().describe("Root note dla movable shapes"),
+  rootNote: z.string().optional().describe("Root note dla movable shapes (barre), np. 'F'"),
 });
 type ResolveShapeInput = z.infer<typeof resolveShapeSchema>;
 
@@ -63,35 +72,30 @@ const setAiModeSchema = z.object({
 type SetAiModeInput = z.infer<typeof setAiModeSchema>;
 
 const startExerciseSchema = z.object({
-  question: z.string().describe("Pytanie do użytkownika"),
-  rootNote: z.string().describe("Nuta podstawowa"),
-  expectedIntervals: z.array(z.string()).describe("Oczekiwane interwały"),
-  fretRange: z.object({ min: z.number().min(0).max(24), max: z.number().min(0).max(24) }).optional().describe("Opcjonalny zakres progów"),
+  question: z.string().describe("Pytanie do użytkownika, np. 'Znajdź wszystkie kwinty względem A'"),
+  rootNote: z.string().describe("Nuta podstawowa, np. 'A', 'C'"),
+  expectedIntervals: z.array(z.string()).describe("Oczekiwane interwały, np. ['5'], ['1', 'b3']"),
+  fretRange: z.object({
+    min: z.number().min(0).max(24),
+    max: z.number().min(0).max(24),
+  }).optional().describe("Opcjonalny zakres progów do wyświetlenia"),
   enabledStrings: z.array(z.boolean()).length(6).optional().describe("Opcjonalnie które struny mają być aktywne"),
 });
 type StartExerciseInput = z.infer<typeof startExerciseSchema>;
 
-// ─── Tool factory ──────────────────────────────────────────────────────
-
-export interface ToolContext {
-  /** The DomainState snapshot from the current request (request-scoped). */
-  domainState: DomainState;
-  /** Callback to emit a domain-command event to the Angular client. */
-  emitCommand: (command: DomainCommand) => void;
-}
-
-/**
- * Creates the agent tools.
- *
- * Command tools return a DomainCommand object instead of executing it.
- * The Angular client receives the command via the NDJSON stream and executes it locally.
- *
- * Query tools read from the DomainState snapshot that Angular sends with each request.
- * Within a single request, Node does NOT see the effects of DomainCommand executed locally.
- */
-export function createAgentTools(ctx: ToolContext) {
+// #endregion
+export const waitForUserTool = tool(
+  async ({ prompt }) => prompt,
+  {
+    name: "wait_for_user",
+    description: "Zatrzymuje lekcję po jednym kroku dydaktycznym i czeka na odpowiedź użytkownika.",
+    schema: z.object({
+      prompt: z.string(),
+    }),
+  },
+)
+export function createDomainTools(ctx: ToolContext) {
   return [
-    // ── show_pattern ────────────────────────────────────────────────
     tool(
       async (input: ShowPatternInput) => {
         const command: DomainCommand = {
@@ -103,8 +107,8 @@ export function createAgentTools(ctx: ToolContext) {
           emphasis: input.emphasis,
         };
         ctx.emitCommand(command);
+
         return {
-          success: true,
           action: "show-pattern",
           patternType: input.patternType,
           patternName: input.patternName,
@@ -118,18 +122,16 @@ export function createAgentTools(ctx: ToolContext) {
         schema: showPatternSchema,
       }
     ),
-
-    // ── show_interval ────────────────────────────────────────────────
     tool(
       async (input: ShowIntervalInput) => {
         const command: DomainCommand = { type: "show-interval", rootNote: input.rootNote, interval: input.interval };
         ctx.emitCommand(command);
+
         return {
-          success: true,
           action: "show-interval",
           rootNote: input.rootNote,
           interval: input.interval,
-          message: `Pokazano interwał ${input.interval} od ${input.rootNote}`,
+          message: `Pokazano interwał ${input.interval} od ${input.rootNote}`
         };
       },
       {
@@ -138,12 +140,13 @@ export function createAgentTools(ctx: ToolContext) {
         schema: showIntervalSchema,
       }
     ),
-
-    // ── clear_view ──────────────────────────────────────────────────
     tool(
       async () => {
         ctx.emitCommand({ type: "clear-view" });
-        return { success: true, action: "clear-view", message: "Widok wyczyszczony" };
+        return {
+          action: "clear-view",
+          message: "Widok wyczyszczony",
+        };
       },
       {
         name: "clear_view",
@@ -152,19 +155,16 @@ export function createAgentTools(ctx: ToolContext) {
       }
     ),
 
-    // ── get_current_view ────────────────────────────────────────────
     tool(
       async () => {
-        // Reads from the DomainState snapshot — no round-trip to Angular
-        const state = ctx.domainState;
+        const result = ctx.domainState;
         return {
           success: true,
           action: "get-current-view",
-          mode: state.mode,
-          rootNote: state.rootNote,
-          patternName: state.patternName,
-          exerciseMode: state.exerciseMode,
-          message: `Aktualny widok: ${state.mode} ${state.patternName} (${state.rootNote})`,
+          mode: result.mode,
+          rootNote: result.rootNote,
+          patternName: result.patternName,
+          message: `Aktualny widok: ${result.mode} ${result.patternName} (${result.rootNote})`,
         };
       },
       {
@@ -173,8 +173,7 @@ export function createAgentTools(ctx: ToolContext) {
         schema: z.object({}),
       }
     ),
-
-    // ── compare_patterns ────────────────────────────────────────────
+    //compare-patterns
     tool(
       async (input: ComparePatternsInput) => {
         const command: DomainCommand = {
@@ -183,27 +182,34 @@ export function createAgentTools(ctx: ToolContext) {
           secondary: input.secondary,
         };
         ctx.emitCommand(command);
+
         return {
-          success: true,
           action: "compare-patterns",
           primary: input.primary,
           secondary: input.secondary,
-          message: `Porównano ${input.primary.patternName} (${input.primary.rootNote}) z ${input.secondary.patternName} (${input.secondary.rootNote})`,
+          message: `Porównano ${input.primary.patternName} (${input.primary.rootNote}) z ${input.secondary.patternName} (${input.secondary.rootNote})`
         };
       },
       {
         name: "compare_patterns",
-        description: "Porównuje dwa patterny (skalę z akordem) na gryfie.",
+        description: "Porównuje dwa patterny (skalę z akordem) na gryfie. Użyj gdy użytkownik chce zobaczyć jak skala nakłada się na akord (np. 'pokaż C-dur z Am', 'porównaj skalę z akordem').",
         schema: comparePatternsSchema,
       }
     ),
-
-    // ── set_view ────────────────────────────────────────────────────
+    //set-view
     tool(
       async (input: SetViewInput) => {
-        const command: DomainCommand = { type: "set-view", ...input };
+        const command: DomainCommand = {
+          type: "set-view",
+          fretRange: input.fretRange,
+          enabledStrings: input.enabledStrings,
+          markerDisplayMode: input.markerDisplayMode,
+        };
         ctx.emitCommand(command);
-        return { success: true, action: "set-view", message: "Widok zaktualizowany" };
+        return {
+          action: "set-view",
+          message: "Widok zaktualizowany",
+        };
       },
       {
         name: "set_view",
@@ -211,66 +217,70 @@ export function createAgentTools(ctx: ToolContext) {
         schema: setViewSchema,
       }
     ),
-
-    // ── set_emphasis ────────────────────────────────────────────────
+    //set-emphasis
     tool(
       async (input: SetEmphasisInput) => {
-        const command: DomainCommand = { type: "set-emphasis", emphasis: input.emphasis };
+        const command: DomainCommand = {
+          type: "set-emphasis",
+          emphasis: input.emphasis,
+        };
         ctx.emitCommand(command);
         return {
-          success: true,
           action: "set-emphasis",
           emphasis: input.emphasis,
-          message: `Ustawiono emphasis: ${JSON.stringify(input.emphasis)}`,
+          message: `Ustawiono emphasis: ${JSON.stringify(input.emphasis)}`
         };
       },
       {
         name: "set_emphasis",
-        description: "Podświetla konkretne interwały lub role na bieżącym patternie.",
+        description: "Podświetla konkretne interwały lub role na bieżącym patternie. Użyj gdy użytkownik chce wyróżnić np. tylko tercje i kwinty.",
         schema: setEmphasisSchema,
       }
     ),
-
-    // ── resolve_shape ───────────────────────────────────────────────
+    //resolve-shape
     tool(
       async (input: ResolveShapeInput) => {
-        const command: DomainCommand = { type: "resolve-shape", shapeId: input.shapeId, rootNote: input.rootNote };
+        const command: DomainCommand = {
+          type: "resolve-shape",
+          shapeId: input.shapeId,
+          rootNote: input.rootNote,
+        };
         ctx.emitCommand(command);
+
         return {
-          success: true,
           action: "resolve-shape",
           shapeId: input.shapeId,
           rootNote: input.rootNote,
-          message: `Pokazano kształt ${input.shapeId}${input.rootNote ? ` (${input.rootNote})` : ''}`,
+          message: `Pokazano kształt ${input.shapeId}${input.rootNote ? ` (${input.rootNote})` : ''}`
         };
       },
       {
         name: "resolve_shape",
-        description: "Wyświetla nazwany kształt (cowboy chord, barre) na gryfie.",
+        description: "Wyświetla nazwany kształt (cowboy chord, barre) na gryfie. Użyj gdy użytkownik zapyta o chwyty gitarowe, np. 'pokaż chwyt C-dur', 'pokaż barre F'.",
         schema: resolveShapeSchema,
       }
     ),
-
-    // ── set_ai_mode ─────────────────────────────────────────────────
+    //set-ai-mode
     tool(
       async (input: SetAiModeInput) => {
-        const command: DomainCommand = { type: "set-ai-mode", enabled: input.enabled };
+        const command: DomainCommand = {
+          type: "set-ai-mode",
+          enabled: input.enabled,
+        };
         ctx.emitCommand(command);
         return {
-          success: true,
           action: "set-ai-mode",
           enabled: input.enabled,
-          message: input.enabled ? "Tryb AI włączony" : "Tryb AI wyłączony",
+          message: (input.enabled ? "Tryb AI włączony" : "Tryb AI wyłączony")
         };
       },
       {
         name: "set_ai_mode",
-        description: "Włącza lub wyłącza tryb AI.",
+        description: "Włącza lub wyłącza tryb AI. Gdy włączony, metronom chowa się a czat zajmuje stałą szerokość.",
         schema: setAiModeSchema,
       }
     ),
-
-    // ── start_exercise ──────────────────────────────────────────────
+    //start-exercise
     tool(
       async (input: StartExerciseInput) => {
         const command: DomainCommand = {
@@ -282,6 +292,7 @@ export function createAgentTools(ctx: ToolContext) {
           enabledStrings: input.enabledStrings,
         };
         ctx.emitCommand(command);
+
         return {
           success: true,
           action: "start-exercise",
@@ -293,51 +304,49 @@ export function createAgentTools(ctx: ToolContext) {
       },
       {
         name: "start_exercise",
-        description: "Rozpoczyna ćwiczenie w trybie lekcji. Aktywuje klikalny tryb na gryfie.",
+        description: "Rozpoczyna ćwiczenie w trybie lekcji. Aktywuje klikalny tryb na gryfie — użytkownik może zaznaczać nuty. Gdy skończy, kliknie Sprawdź. Użyj gdy prowadzisz lekcję i chcesz zadać pytanie typu 'znajdź wszystkie kwinty względem A'.",
         schema: startExerciseSchema,
       }
     ),
-
-    // ── submit_exercise ─────────────────────────────────────────────
+    //submit-exercise
     tool(
       async () => {
-        // Reads exercise result from DomainState snapshot
-        const state = ctx.domainState;
-        const exerciseResult = state.lastExerciseResult;
+        ctx.emitCommand({ type: "submit-exercise" });
+
+        // Read the exercise result from state
         return {
-          success: true,
           action: "submit-exercise",
-          exerciseResult,
-          message: exerciseResult
-            ? `Ćwiczenie sprawdzone. Poprawne: ${exerciseResult.correctCount}, błędne: ${exerciseResult.incorrectCount}`
-            : "Ćwiczenie sprawdzone.",
         };
       },
       {
         name: "submit_exercise",
-        description: "Zatwierdza aktualne ćwiczenie do sprawdzenia. Aplikacja weryfikuje zaznaczone nuty i zwraca wynik.",
+        description: "Zatwierdza aktualne ćwiczenie do sprawdzenia. Aplikacja weryfikuje zaznaczone nuty i zwraca wynik. Użyj po tym jak użytkownik zaznaczy nuty i kliknie Sprawdź.",
         schema: z.object({}),
       }
     ),
-
-    // ── get_exercise_result ─────────────────────────────────────────
+    //get-exercise-result
     tool(
       async () => {
         const state = ctx.domainState;
+        const exerciseResult = state.lastExerciseResult;
         return {
           success: true,
           action: "get-exercise-result",
           exerciseMode: state.exerciseMode,
           exerciseTask: state.exerciseTask,
           selectedNotes: state.selectedNotes,
-          lastExerciseResult: state.lastExerciseResult,
+          lastExerciseResult: exerciseResult,
+          message: exerciseResult
+            ? `Ćwiczenie sprawdzone. Poprawne: ${exerciseResult.correctCount}, błędne: ${exerciseResult.incorrectCount}`
+            : "Ćwiczenie sprawdzone.",
         };
       },
       {
         name: "get_exercise_result",
-        description: "Pobiera wynik ostatniego ćwiczenia oraz aktualny stan trybu ćwiczeń.",
+        description: "Pobiera wynik ostatniego ćwiczenia oraz aktualny stan trybu ćwiczeń. Użyj gdy chcesz sprawdzić co użytkownik zaznaczył lub jaki był wynik walidacji.",
         schema: z.object({}),
       }
     ),
+
   ];
 }

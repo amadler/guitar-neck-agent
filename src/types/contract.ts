@@ -154,21 +154,16 @@ export type DomainResult<T> =
 // ─── Chat API types ───────────────────────────────────────────────────
 
 export interface ChatRequestBody {
-  type: 'message' | 'resume';
+  type: "message" | "resume";
   threadId: string;
   text: string;
-  domainState?: DomainState;
-  lessonId?: string;
+  domainState: DomainState;
+  lessonMode: boolean;
 }
 
-export interface ChatResponseEvent {
-  type: 'token' | 'domain-command' | 'interrupt' | 'error' | 'done';
-  /** For 'token' events */
-  text?: string;
-  /** For 'domain-command' events */
-  command?: DomainCommand;
-  /** For 'interrupt' events */
-  waitingForUser?: boolean;
-  /** For 'error' events */
-  message?: string;
-}
+export type ChatResponseEvent =
+  | { type: "token"; text: string }
+  | { type: "domain-command"; command: DomainCommand }
+  | { type: "interrupt"; waitingForUser: boolean }
+  | { type: "error"; message: string }
+  | { type: "done" };
