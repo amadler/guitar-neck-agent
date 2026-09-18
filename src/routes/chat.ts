@@ -42,9 +42,7 @@ chatRouter.post("/", async (req, res) => {
   try {
     const input =
       type === "resume"
-        ? new Command({
-          resume: text,
-        })
+        ? new Command({ resume: text })
         : {
           messages: [new HumanMessage(text)],
         };

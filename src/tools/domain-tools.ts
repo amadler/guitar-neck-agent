@@ -2,9 +2,12 @@ import { tool } from "langchain/tools";
 import { z } from "zod";
 import { DomainCommand, DomainState } from "../types/contract";
 import { interrupt } from "@langchain/langgraph";
+import { LessonGuard } from "../lesson-guard";
+
 interface ToolContext {
   domainState: DomainState;
   emitCommand: (command: DomainCommand) => void;
+  lessonGuard?: LessonGuard;
 }
 
 // #region Zod schemas
@@ -85,22 +88,33 @@ const startExerciseSchema = z.object({
 type StartExerciseInput = z.infer<typeof startExerciseSchema>;
 
 // #endregion
-export const waitForUserTool = tool(
-  async ({ prompt }) => {
-    return interrupt({ prompt });
-  },
-  {
-    name: "wait_for_user",
-    description: "Zatrzymuje lekcję i czeka na odpowiedź użytkownika.",
-    schema: z.object({
-      prompt: z.string(),
-    }),
-  }
-);
+
+/**
+ * Creates the wait_for_user tool.
+ * Factory function so each invocation gets its own guard reference.
+ */
+export function createWaitForUserTool(guard?: LessonGuard) {
+  return tool(
+    async ({ prompt }) => {
+      guard?.reset();
+      return interrupt({ prompt });
+    },
+    {
+      name: "wait_for_user",
+      description: "Zatrzymuje lekcję i czeka na odpowiedź użytkownika.",
+      schema: z.object({
+        prompt: z.string(),
+      }),
+    },
+  );
+}
+
 export function createDomainTools(ctx: ToolContext) {
   return [
+    // ── show_pattern (domain command) ──────────────────────────────
     tool(
       async (input: ShowPatternInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = {
           type: "show-pattern",
           patternType: input.patternType,
@@ -122,10 +136,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "show_pattern",
         description: "Wyświetla skalę lub akord na gryfie gitary. Użyj gdy użytkownik poprosi o pokazanie skali (np. C-dur, A-moll) lub akordu (np. C-dur, Am).",
         schema: showPatternSchema,
-      }
+      },
     ),
+
+    // ── show_interval (domain command) ─────────────────────────────
     tool(
       async (input: ShowIntervalInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = { type: "show-interval", rootNote: input.rootNote, interval: input.interval };
         ctx.emitCommand(command);
 
@@ -139,10 +156,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "show_interval",
         description: "Wyświetla pojedynczy interwał od root note na gryfie",
         schema: showIntervalSchema,
-      }
+      },
     ),
+
+    // ── clear_view (domain command) ───────────────────────────────
     tool(
       async () => {
+        ctx.lessonGuard?.checkCommand();
         ctx.emitCommand({ type: "clear-view" });
         return {
           action: "clear-view",
@@ -152,11 +172,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "clear_view",
         description: "Czyści gryf i resetuje widok do domyślnego stanu",
         schema: z.object({}),
-      }
+      },
     ),
 
+    // ── get_current_view (query) ──────────────────────────────────
     tool(
       async () => {
+        ctx.lessonGuard?.checkQuery();
         const result = ctx.domainState;
         return {
           action: "get-current-view",
@@ -169,11 +191,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "get_current_view",
         description: "Pobiera aktualny stan widoku gryfu",
         schema: z.object({}),
-      }
+      },
     ),
-    //compare-patterns
+
+    // ── compare_patterns (domain command) ──────────────────────────
     tool(
       async (input: ComparePatternsInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = {
           type: "compare-patterns",
           primary: input.primary,
@@ -191,11 +215,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "compare_patterns",
         description: "Porównuje dwa patterny (skalę z akordem) na gryfie. Użyj gdy użytkownik chce zobaczyć jak skala nakłada się na akord (np. 'pokaż C-dur z Am', 'porównaj skalę z akordem').",
         schema: comparePatternsSchema,
-      }
+      },
     ),
-    //set-view
+
+    // ── set_view (domain command) ──────────────────────────────────
     tool(
       async (input: SetViewInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = {
           type: "set-view",
           fretRange: input.fretRange,
@@ -211,11 +237,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "set_view",
         description: "Zmienia konfigurację widoku gryfu (zakres progów, aktywne struny, tryb wyświetlania markerów) bez zmiany patternu.",
         schema: setViewSchema,
-      }
+      },
     ),
-    //set-emphasis
+
+    // ── set_emphasis (domain command) ──────────────────────────────
     tool(
       async (input: SetEmphasisInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = {
           type: "set-emphasis",
           emphasis: input.emphasis,
@@ -230,11 +258,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "set_emphasis",
         description: "Podświetla konkretne interwały lub role na bieżącym patternie. Użyj gdy użytkownik chce wyróżnić np. tylko tercje i kwinty.",
         schema: setEmphasisSchema,
-      }
+      },
     ),
-    //resolve-shape
+
+    // ── resolve_shape (domain command) ─────────────────────────────
     tool(
       async (input: ResolveShapeInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = {
           type: "resolve-shape",
           shapeId: input.shapeId,
@@ -252,11 +282,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "resolve_shape",
         description: "Wyświetla nazwany kształt (cowboy chord, barre) na gryfie. Użyj gdy użytkownik zapyta o chwyty gitarowe, np. 'pokaż chwyt C-dur', 'pokaż barre F'.",
         schema: resolveShapeSchema,
-      }
+      },
     ),
-    //set-ai-mode
+
+    // ── set_ai_mode (domain command) ───────────────────────────────
     tool(
       async (input: SetAiModeInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = {
           type: "set-ai-mode",
           enabled: input.enabled,
@@ -271,11 +303,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "set_ai_mode",
         description: "Włącza lub wyłącza tryb AI. Gdy włączony, metronom chowa się a czat zajmuje stałą szerokość.",
         schema: setAiModeSchema,
-      }
+      },
     ),
-    //start-exercise
+
+    // ── start_exercise (domain command) ────────────────────────────
     tool(
       async (input: StartExerciseInput) => {
+        ctx.lessonGuard?.checkCommand();
         const command: DomainCommand = {
           type: "start-exercise",
           question: input.question,
@@ -297,12 +331,13 @@ export function createDomainTools(ctx: ToolContext) {
         name: "start_exercise",
         description: "Rozpoczyna ćwiczenie w trybie lekcji. Aktywuje klikalny tryb na gryfie — użytkownik może zaznaczać nuty. Gdy skończy, kliknie Sprawdź. Użyj gdy prowadzisz lekcję i chcesz zadać pytanie typu 'znajdź wszystkie kwinty względem A'.",
         schema: startExerciseSchema,
-      }
+      },
     ),
 
-    //get-exercise-result
+    // ── get_exercise_result (query) ────────────────────────────────
     tool(
       async () => {
+        ctx.lessonGuard?.checkQuery();
         const state = ctx.domainState;
         const exerciseResult = state.lastExerciseResult;
         return {
@@ -318,8 +353,7 @@ export function createDomainTools(ctx: ToolContext) {
         name: "get_exercise_result",
         description: "Pobiera wynik ostatniego ćwiczenia oraz aktualny stan trybu ćwiczeń. Użyj gdy chcesz sprawdzić co użytkownik zaznaczył lub jaki był wynik walidacji.",
         schema: z.object({}),
-      }
+      },
     ),
-
   ];
 }

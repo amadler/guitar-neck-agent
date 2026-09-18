@@ -1,3 +1,31 @@
+# Changelog
+
+## 2026-09-18 — Runtime Lesson Round Guard
+
+Dodano `LessonGuard` — per-request runtime guard egzekwujący regułę "jedno narzędzie domenowe na rundę" w lesson mode.
+
+### Zmiany
+
+- **Nowy:** [`src/lesson-guard.ts`](src/lesson-guard.ts) — klasa `LessonGuard` z `checkCommand()`, `checkQuery()`, `reset()`
+- **Nowy:** [`src/lesson-guard.spec.ts`](src/lesson-guard.spec.ts) — 10 testów jednostkowych
+- **Zmiana:** [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts) — `ToolContext` dostaje `lessonGuard?`, wszystkie tooly sprawdzają guard, `waitForUserTool` zmieniony na factory
+- **Zmiana:** [`src/agent.ts`](src/agent.ts) — `createAgent` tworzy `LessonGuard` per request w lesson mode
+- **Zmiana:** [`src/types/prompts.ts`](src/types/prompts.ts) — `BASE_SYSTEM_PROMPT` bez ograniczeń rundy, `LESSON_SYSTEM_PROMPT` informuje o runtime guardzie
+- **Zmiana:** [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts) — przepisany na obecne API, testuje guard integration
+
+### Zasady guarda
+
+| Scenariusz | Rezultat |
+|---|---|
+| query → command → wait | ✅ |
+| query → query → command → wait | ✅ |
+| command → command | ❌ blokowane |
+| command → query | ❌ blokowane |
+| zwykły chat (lessonMode=false) | ✅ brak limitu |
+| resume po interrupt | ✅ nowy guard, czysty stan |
+
+---
+
 # Backlog
 
 ## Dependency Upgrades (Major Version Bumps)
