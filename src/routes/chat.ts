@@ -7,6 +7,7 @@ import { requireAuth } from "../auth/middleware.js";
 import { db } from "../db/client.js";
 import { chatThreads } from "../db/schema/chat_threads.js";
 import { eq } from "drizzle-orm";
+import { credentialsService } from "../credentials/service.js";
 
 export const chatRouter = Router();
 
@@ -59,6 +60,16 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
   const resolvedDomainState = domainState ?? DEFAULT_DOMAIN_STATE;
 
+  // Resolve API key — prefer user's encrypted credential, fallback to env for dev
+  const userApiKey = await credentialsService.getDecryptedKey(userId);
+  const apiKey = userApiKey ?? process.env.OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    emit({ type: "error", message: "No API key configured. Please add your OpenRouter key in settings." });
+    res.end();
+    return;
+  }
+
   const ctx: AgentRunContext = {
     domainState: resolvedDomainState,
     emitCommand: (command) => {
@@ -70,7 +81,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
   };
 
   const agent = createAgent(ctx, lessonMode, {
-    apiKey: process.env.OPENROUTER_API_KEY!,
+    apiKey,
     model: process.env.OPENROUTER_MODEL!,
   });
 
