@@ -2,13 +2,24 @@ import express from "express";
 import cors from "cors";
 import { chatRouter } from "./routes/chat.js";
 import { db } from "./db/client.js";
+import { sessionMiddleware } from "./auth/middleware.js";
+import { authRouter } from "./auth/routes.js";
+import { usersRouter } from "./users/routes.js";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN ?? "http://localhost:4200",
+    credentials: true,
+  })
+);
 app.use(express.json());
+app.use(sessionMiddleware);
 
 app.use("/api/chat", chatRouter);
+app.use("/api/auth", authRouter);
+app.use("/api", usersRouter);
 
 app.get("/api/health", async (_req, res) => {
   try {
