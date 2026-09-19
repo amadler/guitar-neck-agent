@@ -157,7 +157,7 @@ export interface ChatRequestBody {
   type: "message" | "resume";
   threadId: string;
   text: string;
-  domainState: DomainState;
+  domainState?: DomainState;
   lessonMode: boolean;
 }
 

@@ -2,11 +2,27 @@ import { Router } from "express";
 import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { createAgent, type AgentRunContext } from "../agent.js";
-import type { ChatRequestBody, ChatResponseEvent } from "../types/contract.js";
+import type { ChatRequestBody, ChatResponseEvent, DomainState } from "../types/contract.js";
+import { requireAuth } from "../auth/middleware.js";
+import { db } from "../db/client.js";
+import { chatThreads } from "../db/schema/chat_threads.js";
+import { eq } from "drizzle-orm";
 
 export const chatRouter = Router();
 
-chatRouter.post("/", async (req, res) => {
+const DEFAULT_DOMAIN_STATE: DomainState = {
+  mode: "scale",
+  aiModeEnabled: false,
+  displayMode: null,
+  rootNote: "C",
+  patternName: "",
+  fretRange: { min: 0, max: 12 },
+  enabledStrings: [true, true, true, true, true, true],
+  markerDisplayMode: "interval-colors",
+  exerciseMode: false,
+};
+
+chatRouter.post("/", requireAuth, async (req, res) => {
   const {
     type,
     threadId,
@@ -15,12 +31,36 @@ chatRouter.post("/", async (req, res) => {
     lessonMode,
   } = req.body as ChatRequestBody;
 
+  const userId = req.session.userId!;
+
+  // Validate threadId if provided — must belong to this user
+  if (threadId) {
+    const [thread] = await db
+      .select({ id: chatThreads.id, userId: chatThreads.userId })
+      .from(chatThreads)
+      .where(eq(chatThreads.id, threadId))
+      .limit(1);
+
+    if (thread) {
+      // Thread exists — verify ownership
+      if (thread.userId !== userId) {
+        res.status(403).json({ error: "Thread does not belong to this user" });
+        return;
+      }
+    } else {
+      // Thread doesn't exist yet — create it
+      await db.insert(chatThreads).values({ id: threadId, userId });
+    }
+  }
+
   const emit = (event: ChatResponseEvent) => {
     res.write(JSON.stringify(event) + "\n");
   };
 
+  const resolvedDomainState = domainState ?? DEFAULT_DOMAIN_STATE;
+
   const ctx: AgentRunContext = {
-    domainState,
+    domainState: resolvedDomainState,
     emitCommand: (command) => {
       emit({
         type: "domain-command",
@@ -36,7 +76,6 @@ chatRouter.post("/", async (req, res) => {
 
   res.setHeader("Content-Type", "application/x-ndjson");
   res.setHeader("Cache-Control", "no-cache");
-
 
 
   try {
