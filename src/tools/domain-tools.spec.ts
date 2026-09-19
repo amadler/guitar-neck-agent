@@ -136,7 +136,7 @@ describe("createDomainTools", () => {
       expect(ctx.emitted).toHaveLength(1);
 
       // Drugi command — bez guarda, więc dozwolony
-      await showIntervalTool.invoke({ rootNote: "C", interval: "3" });
+      await showIntervalTool.invoke({ rootNote: "C", intervals: ["3"] });
       expect(ctx.emitted).toHaveLength(2);
     });
 

@@ -41,9 +41,9 @@ export interface SetEmphasisCommand {
 }
 
 export interface ShowIntervalCommand {
-  type: 'show-interval';
+  type: 'show-intervals';
   rootNote: string;
-  interval: string;
+  intervals: string[];
 }
 
 export interface ClearViewCommand {

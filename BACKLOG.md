@@ -26,6 +26,13 @@ Dodano `LessonGuard` — per-request runtime guard egzekwujący regułę "jedno 
 
 ---
 
+## 2026-09-19 — Fix: LessonGuard return zamiast throw
+
+`LessonGuard.checkCommand()` i `checkQuery()` zmienione z `throw Error` na `return string | null`.
+Tool sprawdza return value i zwraca `{ error, action: "blocked" }` zamiast crashować stream przez `pending.rejectOutput`.
+
+---
+
 # Backlog
 
 ## Dependency Upgrades (Major Version Bumps)
@@ -59,6 +66,17 @@ Dodano `LessonGuard` — per-request runtime guard egzekwujący regułę "jedno 
 - **Latest:** `5.0.6`
 - **Risk:** Requires express v5 — blocked until express migration is done.
 - **Blocked by:** express v5 migration
+
+## Domain
+
+### [ ] show_interval — obsługa tablicy interwałów
+- **Problem:** Frontend wysyła `window.__ds.execute({ type: "show-interval", rootNote: "A", interval: "[5,b2,b7]" })`, ale [`ShowIntervalCommand`](src/types/contract.ts:43) i schema toola w [`domain-tools.ts`](src/tools/domain-tools.ts:26) oczekują pojedynczego `interval: string`.
+- **Konieczne zmiany:**
+  - [`src/types/contract.ts`](src/types/contract.ts) — `ShowIntervalCommand.interval` zmienić na `string[]`
+  - [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts) — schema `showIntervalSchema` zmienić na `z.array(z.string())`
+  - [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts) — testy dla tablicy interwałów
+  - Frontend — sprawdzić czy już wysyła tablicę
+- **Blocked by:** Uzgodnienie kontraktu z frontendem
 
 ## Security
 

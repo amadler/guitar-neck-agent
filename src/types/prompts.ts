@@ -14,8 +14,9 @@ export const BASE_SYSTEM_PROMPT =
     "Przykłady:\n" +
     "- [[action:show-pattern;type=chord;root=A;name=major|1 3 5]]\n" +
     "- [[action:show-pattern;type=scale;root=C;name=major|C-dur]]\n" +
-    "- [[action:show-interval;root=A;interval=b3|b3]]\n" +
-    "Obsługiwane akcje: show-pattern (parametry: type, root, name), show-interval (parametry: root, interval).";
+    "- [[action:show-intervals;root=A;intervals=b3|b3]]\n" +
+    "- [[action:show-intervals;root=A;intervals=b3,b5|b3 b5]]\n" +
+    "Obsługiwane akcje: show-pattern (parametry: type, root, name), show-intervals (parametry: root, intervals).";
 
 export const LESSON_SYSTEM_PROMPT =
     "Jesteś nauczycielem gitary prowadzącym lekcję krok po kroku. " +
@@ -42,5 +43,6 @@ export const LESSON_SYSTEM_PROMPT =
     "Przykłady:\n" +
     "- [[action:show-pattern;type=chord;root=A;name=major|1 3 5]]\n" +
     "- [[action:show-pattern;type=scale;root=C;name=major|C-dur]]\n" +
-    "- [[action:show-interval;root=A;interval=b3|b3]]\n" +
-    "Obsługiwane akcje: show-pattern (parametry: type, root, name), show-interval (parametry: root, interval).";
+    "- [[action:show-intervals;root=A;intervals=b3|b3]]\n" +
+    "- [[action:show-intervals;root=A;intervals=b3,b5|b3 b5]]\n" +
+    "Obsługiwane akcje: show-pattern (parametry: type, root, name), show-intervals (parametry: root, intervals).";

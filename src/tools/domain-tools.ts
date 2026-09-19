@@ -28,7 +28,7 @@ type ShowPatternInput = z.infer<typeof showPatternSchema>;
 
 const showIntervalSchema = z.object({
   rootNote: z.string().describe("Nuta podstawowa"),
-  interval: z.string().describe("Nazwa interwału, np. b3, 3, 5, b7"),
+  intervals: z.array(z.string()).describe("Lista interwałów, np. ['b3', '5', 'b7']"),
 });
 type ShowIntervalInput = z.infer<typeof showIntervalSchema>;
 
@@ -145,18 +145,18 @@ export function createDomainTools(ctx: ToolContext) {
       async (input: ShowIntervalInput) => {
         const blocked = ctx.lessonGuard?.checkCommand();
         if (blocked) return { error: blocked, action: "blocked" };
-        const command: DomainCommand = { type: "show-interval", rootNote: input.rootNote, interval: input.interval };
+        const command: DomainCommand = { type: "show-intervals", rootNote: input.rootNote, intervals: input.intervals };
         ctx.emitCommand(command);
 
         return {
-          action: "show-interval",
+          action: "show-intervals",
           rootNote: input.rootNote,
-          interval: input.interval,
+          intervals: input.intervals,
         };
       },
       {
         name: "show_interval",
-        description: "Wyświetla pojedynczy interwał od root note na gryfie",
+        description: "Wyświetla interwał lub listę interwałów od root note na gryfie",
         schema: showIntervalSchema,
       },
     ),
