@@ -6,6 +6,7 @@ import { sessionMiddleware } from "./auth/middleware.js";
 import { authRouter } from "./auth/routes.js";
 import { usersRouter } from "./users/routes.js";
 import { credentialsRouter } from "./credentials/routes.js";
+import { progressRouter } from "./progress/routes.js";
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use("/api/chat", chatRouter);
 app.use("/api/auth", authRouter);
 app.use("/api", usersRouter);
 app.use("/api/credentials", credentialsRouter);
+app.use("/api/progress", progressRouter);
 
 app.get("/api/health", async (_req, res) => {
   try {
