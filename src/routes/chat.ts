@@ -80,7 +80,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     },
   };
 
-  const agent = createAgent(ctx, lessonMode, {
+  const agent = await createAgent(ctx, lessonMode, {
     apiKey,
     model: process.env.OPENROUTER_MODEL!,
   });
