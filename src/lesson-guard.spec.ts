@@ -16,39 +16,43 @@ describe("LessonGuard", () => {
 
   // ── Query before command ─────────────────────────────────────────
 
-  it("pozwala na query przed command", () => {
-    expect(() => guard.checkQuery()).not.toThrow();
-    expect(() => guard.checkCommand()).not.toThrow();
+  it("pozwala na query przed command — zwraca null", () => {
+    expect(guard.checkQuery()).toBeNull();
+    expect(guard.checkCommand()).toBeNull();
   });
 
   it("pozwala na wiele query przed command", () => {
-    expect(() => guard.checkQuery()).not.toThrow();
-    expect(() => guard.checkQuery()).not.toThrow();
-    expect(() => guard.checkCommand()).not.toThrow();
+    expect(guard.checkQuery()).toBeNull();
+    expect(guard.checkQuery()).toBeNull();
+    expect(guard.checkCommand()).toBeNull();
   });
 
   // ── Single command ───────────────────────────────────────────────
 
-  it("pozwala na jeden command", () => {
-    expect(() => guard.checkCommand()).not.toThrow();
+  it("pozwala na jeden command — zwraca null i ustawia committed", () => {
+    expect(guard.checkCommand()).toBeNull();
     expect(guard.committed).toBe(true);
   });
 
   // ── Command → command (blokowane) ────────────────────────────────
 
-  it("blokuje drugi command w tej samej rundzie", () => {
+  it("blokuje drugi command w tej samej rundzie — zwraca string", () => {
     guard.checkCommand();
-    expect(() => guard.checkCommand()).toThrow(
-      "W tej rundzie został już wykonany jedno narzędzie domenowe",
+    const result = guard.checkCommand();
+    expect(result).toBe(
+      "W tej rundzie został już wykonany jedno narzędzie domenowe. " +
+      "Nie można wykonać kolejnego. Użyj wait_for_user, aby zakończyć rundę.",
     );
   });
 
   // ── Command → query (blokowane) ──────────────────────────────────
 
-  it("blokuje query po command", () => {
+  it("blokuje query po command — zwraca string", () => {
     guard.checkCommand();
-    expect(() => guard.checkQuery()).toThrow(
-      "Po narzędziu domenowym nie można już wykonywać zapytań w tej rundzie",
+    const result = guard.checkQuery();
+    expect(result).toBe(
+      "Po narzędziu domenowym nie można już wykonywać zapytań w tej rundzie. " +
+      "Stan widoku został zmieniony. Użyj wait_for_user, aby zakończyć rundę.",
     );
   });
 
@@ -64,21 +68,21 @@ describe("LessonGuard", () => {
   it("pozwala na command po resecie (symulacja nowej rundy)", () => {
     guard.checkCommand();
     guard.reset();
-    expect(() => guard.checkCommand()).not.toThrow();
+    expect(guard.checkCommand()).toBeNull();
   });
 
   it("pozwala na query po resecie", () => {
     guard.checkCommand();
     guard.reset();
-    expect(() => guard.checkQuery()).not.toThrow();
+    expect(guard.checkQuery()).toBeNull();
   });
 
   // ── Pełny cykl rundy ─────────────────────────────────────────────
 
   it("działa poprawnie: query → command → reset → query → command", () => {
     // Runda 1
-    guard.checkQuery();
-    guard.checkCommand();
+    expect(guard.checkQuery()).toBeNull();
+    expect(guard.checkCommand()).toBeNull();
     expect(guard.committed).toBe(true);
 
     // Nowa runda
@@ -86,9 +90,8 @@ describe("LessonGuard", () => {
     expect(guard.committed).toBe(false);
 
     // Runda 2
-    guard.checkQuery();
-    expect(() => guard.checkCommand()).not.toThrow();
+    expect(guard.checkQuery()).toBeNull();
+    expect(guard.checkCommand()).toBeNull();
     expect(guard.committed).toBe(true);
   });
-
 });

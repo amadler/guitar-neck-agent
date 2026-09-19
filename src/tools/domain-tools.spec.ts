@@ -44,20 +44,22 @@ describe("createDomainTools", () => {
       expect(result).toMatchObject({ action: "show-pattern" });
     });
 
-    it("show_pattern rzuca error gdy guard już committed", async () => {
+    it("show_pattern zwraca error gdy guard już committed", async () => {
       const guard = new LessonGuard();
       guard.checkCommand(); // symulacja wcześniejszego commanda
       const ctx = createMockContext();
       const tools = createDomainTools({ ...ctx, lessonGuard: guard });
       const showPatternTool = tools[0];
 
-      await expect(
-        showPatternTool.invoke({
-          patternType: "scale",
-          patternName: "major",
-          rootNote: "C",
-        }),
-      ).rejects.toThrow("został już wykonany");
+      const result = await showPatternTool.invoke({
+        patternType: "scale",
+        patternName: "major",
+        rootNote: "C",
+      });
+
+      expect(result).toMatchObject({ action: "blocked" });
+      expect(result.error).toContain("został już wykonany");
+      expect(ctx.emitted).toHaveLength(0); // command nie został wyemitowany
     });
 
     it("start_exercise akceptuje guard", async () => {
@@ -92,16 +94,17 @@ describe("createDomainTools", () => {
       expect(result).toMatchObject({ action: "get-current-view", mode: "scale" });
     });
 
-    it("get_current_view rzuca error po command", async () => {
+    it("get_current_view zwraca error po command", async () => {
       const guard = new LessonGuard();
       guard.checkCommand(); // symulacja wcześniejszego commanda
       const ctx = createMockContext();
       const tools = createDomainTools({ ...ctx, lessonGuard: guard });
       const getViewTool = tools[3];
 
-      await expect(getViewTool.invoke({})).rejects.toThrow(
-        "Po narzędziu domenowym nie można już wykonywać zapytań",
-      );
+      const result = await getViewTool.invoke({});
+
+      expect(result).toMatchObject({ action: "blocked" });
+      expect(result.error).toContain("Po narzędziu domenowym");
     });
 
     it("get_exercise_result działa przed command", async () => {

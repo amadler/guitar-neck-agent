@@ -114,7 +114,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── show_pattern (domain command) ──────────────────────────────
     tool(
       async (input: ShowPatternInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "show-pattern",
           patternType: input.patternType,
@@ -142,7 +143,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── show_interval (domain command) ─────────────────────────────
     tool(
       async (input: ShowIntervalInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = { type: "show-interval", rootNote: input.rootNote, interval: input.interval };
         ctx.emitCommand(command);
 
@@ -162,7 +164,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── clear_view (domain command) ───────────────────────────────
     tool(
       async () => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         ctx.emitCommand({ type: "clear-view" });
         return {
           action: "clear-view",
@@ -178,7 +181,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── get_current_view (query) ──────────────────────────────────
     tool(
       async () => {
-        ctx.lessonGuard?.checkQuery();
+        const blocked = ctx.lessonGuard?.checkQuery();
+        if (blocked) return { error: blocked, action: "blocked" };
         const result = ctx.domainState;
         return {
           action: "get-current-view",
@@ -197,7 +201,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── compare_patterns (domain command) ──────────────────────────
     tool(
       async (input: ComparePatternsInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "compare-patterns",
           primary: input.primary,
@@ -221,7 +226,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── set_view (domain command) ──────────────────────────────────
     tool(
       async (input: SetViewInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "set-view",
           fretRange: input.fretRange,
@@ -243,7 +249,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── set_emphasis (domain command) ──────────────────────────────
     tool(
       async (input: SetEmphasisInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "set-emphasis",
           emphasis: input.emphasis,
@@ -264,7 +271,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── resolve_shape (domain command) ─────────────────────────────
     tool(
       async (input: ResolveShapeInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "resolve-shape",
           shapeId: input.shapeId,
@@ -288,7 +296,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── set_ai_mode (domain command) ───────────────────────────────
     tool(
       async (input: SetAiModeInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "set-ai-mode",
           enabled: input.enabled,
@@ -309,7 +318,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── start_exercise (domain command) ────────────────────────────
     tool(
       async (input: StartExerciseInput) => {
-        ctx.lessonGuard?.checkCommand();
+        const blocked = ctx.lessonGuard?.checkCommand();
+        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "start-exercise",
           question: input.question,
@@ -337,7 +347,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── get_exercise_result (query) ────────────────────────────────
     tool(
       async () => {
-        ctx.lessonGuard?.checkQuery();
+        const blocked = ctx.lessonGuard?.checkQuery();
+        if (blocked) return { error: blocked, action: "blocked" };
         const state = ctx.domainState;
         const exerciseResult = state.lastExerciseResult;
         return {
