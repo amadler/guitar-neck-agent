@@ -1,0 +1,7 @@
+guitarneck.localhost {
+    reverse_proxy backend:3001
+}
+
+localhost:80 {
+    reverse_proxy backend:3001
+}
