@@ -10,9 +10,16 @@ import { progressRouter } from "./progress/routes.js";
 
 const app = express();
 
+const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:4200,http://127.0.0.1:4200").split(",");
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN ?? "http://localhost:4200",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (server-to-server, curl, etc.)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(null, false);
+    },
     credentials: true,
   })
 );

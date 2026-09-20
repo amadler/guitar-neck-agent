@@ -1,5 +1,8 @@
 # Instrukcje dla frontendu (Angular) — integracja z nowym backendem
 
+> **Uwaga:** Backend akceptuje CORS z `http://localhost:4200` i `http://127.0.0.1:4200`.
+> Jeśli Angular chodzi na innym porcie, ustaw `CORS_ORIGIN` w `.env` backendu.
+
 ## 1. Auth — sesja HTTP-only cookie
 
 Backend używa `express-session` z `connect-pg-simple`. Sesja jest przechowywana w HTTP-only cookie — Angular nie musi nic robić z cookie, tylko wysyłać `withCredentials: true`.
