@@ -43,8 +43,12 @@ export const exercisesService = {
       .where(eq(exerciseResults.userId, userId));
 
     return results.reduce((sum, r) => {
-      const res = r.result as { correct?: boolean; correctCount?: number };
-      return sum + (res.correctCount ?? (res.correct ? 1 : 0));
+      const res = r.result;
+      if (res === null || typeof res !== "object") return sum;
+      const obj = res as Record<string, unknown>;
+      const correctCount = typeof obj.correctCount === "number" ? obj.correctCount : undefined;
+      const correct = typeof obj.correct === "boolean" ? obj.correct : undefined;
+      return sum + (correctCount ?? (correct ? 1 : 0));
     }, 0);
   },
 

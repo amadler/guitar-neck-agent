@@ -35,23 +35,31 @@ chatRouter.post("/", requireAuth, async (req, res) => {
   const userId = req.session.userId!;
 
   // Validate threadId if provided — must belong to this user
-  if (threadId) {
-    const [thread] = await db
-      .select({ id: chatThreads.id, userId: chatThreads.userId })
-      .from(chatThreads)
-      .where(eq(chatThreads.id, threadId))
-      .limit(1);
+  try {
+    if (threadId) {
+      const [thread] = await db
+        .select({ id: chatThreads.id, userId: chatThreads.userId })
+        .from(chatThreads)
+        .where(eq(chatThreads.id, threadId))
+        .limit(1);
 
-    if (thread) {
-      // Thread exists — verify ownership
-      if (thread.userId !== userId) {
-        res.status(403).json({ error: "Thread does not belong to this user" });
-        return;
+      if (thread) {
+        // Thread exists — verify ownership
+        if (thread.userId !== userId) {
+          res.status(403).json({ error: "Thread does not belong to this user" });
+          return;
+        }
+      } else {
+        // Thread doesn't exist yet — create it
+        await db.insert(chatThreads).values({ id: threadId, userId });
       }
-    } else {
-      // Thread doesn't exist yet — create it
-      await db.insert(chatThreads).values({ id: threadId, userId });
     }
+  } catch (err) {
+    res.status(503).json({
+      error: "Database unavailable",
+      message: err instanceof Error ? err.message : "Unknown error",
+    });
+    return;
   }
 
   const emit = (event: ChatResponseEvent) => {
@@ -87,7 +95,6 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
   res.setHeader("Content-Type", "application/x-ndjson");
   res.setHeader("Cache-Control", "no-cache");
-
 
   try {
     const input =

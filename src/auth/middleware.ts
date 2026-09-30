@@ -10,12 +10,17 @@ declare module "express-session" {
   }
 }
 
+const sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  console.warn("[WARN] SESSION_SECRET is not set. Using insecure default. Set it in .env for production.");
+}
+
 const sessionMiddleware = session({
   store: new PgSession({
     conString: process.env.DATABASE_URL ?? "postgres://guitarneck:guitarneck@localhost:5432/guitarneck",
     createTableIfMissing: true,
   }),
-  secret: process.env.SESSION_SECRET ?? "change-me-in-production",
+  secret: sessionSecret ?? "change-me-in-production",
   resave: false,
   saveUninitialized: false,
   cookie: {

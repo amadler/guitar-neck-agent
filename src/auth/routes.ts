@@ -6,6 +6,11 @@ import { eq } from "drizzle-orm";
 
 export const authRouter = Router();
 
+// Simple email format validation
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 // POST /api/auth/register
 authRouter.post("/register", async (req, res) => {
   try {
@@ -18,6 +23,11 @@ authRouter.post("/register", async (req, res) => {
 
     if (typeof email !== "string" || typeof password !== "string") {
       res.status(400).json({ error: "Email and password must be strings" });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: "Invalid email format" });
       return;
     }
 
@@ -38,6 +48,10 @@ authRouter.post("/register", async (req, res) => {
     req.session.save((err) => {
       if (err) {
         console.error("Session save error:", err);
+        // Cleanup: remove the user that was just created since session failed
+        db.delete(users).where(eq(users.id, user.id)).catch((cleanupErr) => {
+          console.error("Failed to cleanup user after session error:", cleanupErr);
+        });
         res.status(500).json({ error: "Failed to create session" });
         return;
       }
@@ -56,6 +70,16 @@ authRouter.post("/login", async (req, res) => {
 
     if (!email || !password) {
       res.status(400).json({ error: "Email and password are required" });
+      return;
+    }
+
+    if (typeof email !== "string" || typeof password !== "string") {
+      res.status(400).json({ error: "Email and password must be strings" });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: "Invalid email format" });
       return;
     }
 

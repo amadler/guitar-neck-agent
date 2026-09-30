@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import rateLimit from "express-rate-limit";
 import { chatRouter } from "./routes/chat.js";
 import { db } from "./db/client.js";
 import { sessionMiddleware } from "./auth/middleware.js";
@@ -23,8 +24,19 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(sessionMiddleware);
+
+// Rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 attempts per window
+  message: { error: "Too many requests, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use("/api/auth", authLimiter);
 
 app.use("/api/chat", chatRouter);
 app.use("/api/auth", authRouter);
@@ -39,6 +51,12 @@ app.get("/api/health", async (_req, res) => {
   } catch {
     res.status(503).json({ status: "error", db: "disconnected" });
   }
+});
+
+// Global error handler — catch anything that falls through
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "Internal server error" });
 });
 
 const port = Number(process.env.PORT ?? 3001);

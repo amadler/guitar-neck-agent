@@ -37,6 +37,7 @@ Angular SPA (guitar-neck-ui)          Node backend (guitar-neck-agent)
 ### Prerequisites
 
 - Node.js 20+
+- Docker (for PostgreSQL)
 - OpenRouter API key
 
 ### Installation
@@ -57,25 +58,46 @@ cp .env.example .env
 
 Required:
 - `OPENROUTER_API_KEY` — Your OpenRouter API key
+- `DATABASE_URL` — PostgreSQL connection string (default: `postgres://guitarneck:guitarneck@localhost:5432/guitarneck`)
+- `SESSION_SECRET` — Secret for signing session cookies (generate with `openssl rand -hex 32`)
 
 Optional:
 - `OPENROUTER_MODEL` — Model name (default: `deepseek/deepseek-v4-flash`)
 - `PORT` — Server port (default: `3001`)
-- `CORS_ORIGIN` — CORS origin for development (default: `*`)
+- `CORS_ORIGIN` — CORS origin for development (default: `http://localhost:4200,http://127.0.0.1:4200`)
+
+### Database Setup
+
+The app requires PostgreSQL. The recommended way is via Docker:
+
+```bash
+# Start PostgreSQL (keeps running in background)
+docker compose up -d postgres
+
+# Verify it's healthy
+docker compose ps
+```
+
+This starts PostgreSQL on `localhost:5432` with user `guitarneck`, password `guitarneck`, and database `guitarneck`.
 
 ### Development
+
+With PostgreSQL running, start the server with hot-reload:
 
 ```bash
 npm run dev
 ```
 
-Starts the server with hot-reload via `tsx watch`.
+The API will be available at `http://localhost:3001`.
 
 ### Production
 
 ```bash
+# Build TypeScript
 npm run build
-npm start
+
+# Start all services (postgres + caddy + backend)
+docker compose up -d
 ```
 
 ## API
@@ -118,7 +140,39 @@ Event types:
 
 ### `GET /api/health`
 
-Health check endpoint.
+Health check endpoint. Returns `{ status: "ok", db: "connected" }` when the database is reachable, or `503` with `{ status: "error", db: "disconnected" }` when it's not.
+
+### `POST /api/auth/register`
+
+Register a new user.
+
+**Request body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+### `POST /api/auth/login`
+
+Log in with existing credentials.
+
+**Request body:**
+```json
+{
+  "email": "user@example.com",
+  "password": "your-password"
+}
+```
+
+### `POST /api/auth/logout`
+
+Destroy the current session.
+
+### `GET /api/me`
+
+Get the currently authenticated user's profile.
 
 ## Project Structure
 
@@ -130,8 +184,25 @@ src/
 │   └── contract.ts       # Shared types (DomainCommand, DomainState, etc.)
 ├── tools/
 │   └── domain-tools.ts   # Agent tool definitions
-└── routes/
-    └── chat.ts           # POST /api/chat handler
+├── auth/
+│   ├── routes.ts         # POST /api/auth/register, login, logout
+│   └── middleware.ts     # Session middleware + requireAuth guard
+├── credentials/
+│   ├── routes.ts         # CRUD for user API keys
+│   ├── service.ts        # Encrypted credential storage
+│   └── crypto.ts         # AES-256-GCM encryption
+├── progress/
+│   ├── routes.ts         # Lesson progress endpoints
+│   ├── service.ts        # Progress CRUD
+│   └── exercises.ts      # Exercise results + level tracking
+├── users/
+│   └── routes.ts         # GET /api/me
+├── routes/
+│   └── chat.ts           # POST /api/chat handler
+└── db/
+    ├── client.ts         # Drizzle + postgres.js client
+    ├── schema/           # Database schema definitions
+    └── migrations/       # Drizzle Kit migrations
 ```
 
 ## Deployment

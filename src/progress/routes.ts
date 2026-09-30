@@ -73,12 +73,25 @@ progressRouter.put("/:lessonId", requireAuth, async (req, res) => {
   try {
     const { status, currentStep, data, startedAt, completedAt } = req.body;
 
+    // Validate date fields before passing to new Date()
+    const parsedStartedAt = parseDateField(startedAt);
+    const parsedCompletedAt = parseDateField(completedAt);
+
+    if (startedAt !== undefined && parsedStartedAt === undefined) {
+      res.status(400).json({ error: "Invalid startedAt: must be an ISO date string or timestamp" });
+      return;
+    }
+    if (completedAt !== undefined && parsedCompletedAt === undefined) {
+      res.status(400).json({ error: "Invalid completedAt: must be an ISO date string or timestamp" });
+      return;
+    }
+
     await progressService.upsert(req.session.userId!, req.params.lessonId, {
       status,
       currentStep,
       data,
-      startedAt: startedAt ? new Date(startedAt) : undefined,
-      completedAt: completedAt ? new Date(completedAt) : undefined,
+      startedAt: parsedStartedAt,
+      completedAt: parsedCompletedAt,
     });
 
     res.json({ ok: true });
@@ -87,3 +100,13 @@ progressRouter.put("/:lessonId", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+function parseDateField(value: unknown): Date | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (value instanceof Date && !isNaN(value.getTime())) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return undefined;
+}
