@@ -5,7 +5,6 @@ import { createDeepAgent, type DeepAgent } from "deepagents";
 import type { DomainCommand, DomainState } from "./types/contract.js";
 import { createDomainTools, createWaitForUserTool } from "./tools/domain-tools.js";
 import { BASE_SYSTEM_PROMPT, LESSON_SYSTEM_PROMPT } from "./types/prompts.js";
-import { LessonGuard } from "./lesson-guard.js";
 
 const DATABASE_URL = process.env.DATABASE_URL ?? "postgres://guitarneck:guitarneck@localhost:5432/guitarneck";
 
@@ -30,11 +29,13 @@ async function getCheckpointer(): Promise<PostgresSaver> {
 export interface AgentRunContext {
   domainState: DomainState;
   emitCommand: (command: DomainCommand) => void;
+  executeCommand: (command: DomainCommand) => Promise<void>;
 }
 
 interface AgentConfig {
   apiKey: string;
   model: string;
+  interactionDensity: string;
 }
 
 export async function createAgent(
@@ -44,13 +45,10 @@ export async function createAgent(
 ): Promise<DeepAgent<any>> {
   const cp = await getCheckpointer();
 
-  // Per-request guard — fresh for every invocation, discarded when the request ends.
-  const guard = lessonMode ? new LessonGuard() : undefined;
-
   const domainTools = createDomainTools({
     domainState: ctx.domainState,
     emitCommand: ctx.emitCommand,
-    lessonGuard: guard,
+    executeCommand: ctx.executeCommand,
   });
 
   const model = new ChatOpenRouter({
@@ -58,14 +56,20 @@ export async function createAgent(
     model: config.model,
   });
 
+  // Inject interaction density into the lesson system prompt
+  const lessonPrompt = LESSON_SYSTEM_PROMPT.replace(
+    "{{interactionDensity}}",
+    config.interactionDensity,
+  );
+
   return createDeepAgent({
     model,
     tools: lessonMode
-      ? [...domainTools, createWaitForUserTool(guard)]
+      ? [...domainTools, createWaitForUserTool()]
       : domainTools,
     checkpointer: cp,
     systemPrompt: lessonMode
-      ? LESSON_SYSTEM_PROMPT
+      ? lessonPrompt
       : BASE_SYSTEM_PROMPT,
   });
 }

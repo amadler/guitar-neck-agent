@@ -78,19 +78,31 @@ chatRouter.post("/", requireAuth, async (req, res) => {
     return;
   }
 
+  // Command sequencer — ensures deterministic ordering of domain commands
+  // when the LLM calls multiple tools in parallel.
+  // Each command waits for the previous one to finish emitting before proceeding.
+  let commandQueue: Promise<void> = Promise.resolve();
+
+  const executeCommand = async (command: DomainCommand) => {
+    await (commandQueue = commandQueue.then(() => {
+      emit({ type: "domain-command", command });
+    }));
+  };
+
   const ctx: AgentRunContext = {
     domainState: resolvedDomainState,
     emitCommand: (command) => {
-      emit({
-        type: "domain-command",
-        command,
-      });
+      emit({ type: "domain-command", command });
     },
+    executeCommand,
   };
+
+  const interactionDensity = process.env.LESSON_INTERACTION_DENSITY ?? "balanced";
 
   const agent = await createAgent(ctx, lessonMode, {
     apiKey,
     model: process.env.OPENROUTER_MODEL!,
+    interactionDensity,
   });
 
   res.setHeader("Content-Type", "application/x-ndjson");

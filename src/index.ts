@@ -9,6 +9,18 @@ import { usersRouter } from "./users/routes.js";
 import { credentialsRouter } from "./credentials/routes.js";
 import { progressRouter } from "./progress/routes.js";
 
+// ─── Startup validation ────────────────────────────────────────────────
+
+const VALID_DENSITIES = ["frequent", "balanced", "mostly-teach"] as const;
+const interactionDensity = process.env.LESSON_INTERACTION_DENSITY ?? "balanced";
+if (!VALID_DENSITIES.includes(interactionDensity)) {
+  console.error(
+    `Invalid LESSON_INTERACTION_DENSITY: "${interactionDensity}". ` +
+    `Must be one of: ${VALID_DENSITIES.join(", ")}`,
+  );
+  process.exit(1);
+}
+
 const app = express();
 
 const allowedOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:4200,http://127.0.0.1:4200").split(",");
