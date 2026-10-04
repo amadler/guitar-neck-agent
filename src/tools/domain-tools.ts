@@ -2,12 +2,11 @@ import { tool } from "langchain/tools";
 import { z } from "zod";
 import { DomainCommand, DomainState } from "../types/contract";
 import { interrupt } from "@langchain/langgraph";
-import { LessonGuard } from "../lesson-guard";
 
 interface ToolContext {
   domainState: DomainState;
   emitCommand: (command: DomainCommand) => void;
-  lessonGuard?: LessonGuard;
+  executeCommand: (command: DomainCommand) => Promise<void>;
 }
 
 // #region Zod schemas
@@ -79,6 +78,11 @@ const startExerciseSchema = z.object({
   question: z.string().describe("Pytanie do użytkownika, np. 'Znajdź wszystkie kwinty względem A'"),
   rootNote: z.string().describe("Nuta podstawowa, np. 'A', 'C'"),
   expectedIntervals: z.array(z.string()).describe("Oczekiwane interwały, np. ['5'], ['1', 'b3']"),
+  showIntervals: z.array(z.string()).optional().describe(
+    "Interwały do wyświetlenia na gryfie na początku ćwiczenia. " +
+    "Np. ['1'] pokaże nutę podstawową, ['1','5'] pokaże root i kwintę. " +
+    "Użyj gdy uczeń potrzebuje wizualnego punktu odniesienia przed rozpoczęciem."
+  ),
   fretRange: z.object({
     min: z.number().min(0).max(24),
     max: z.number().min(0).max(24),
@@ -91,12 +95,11 @@ type StartExerciseInput = z.infer<typeof startExerciseSchema>;
 
 /**
  * Creates the wait_for_user tool.
- * Factory function so each invocation gets its own guard reference.
+ * Calls native LangGraph interrupt() to pause execution until the user responds.
  */
-export function createWaitForUserTool(guard?: LessonGuard) {
+export function createWaitForUserTool() {
   return tool(
     async ({ prompt }) => {
-      guard?.reset();
       return interrupt({ prompt });
     },
     {
@@ -114,8 +117,6 @@ export function createDomainTools(ctx: ToolContext) {
     // ── show_pattern (domain command) ──────────────────────────────
     tool(
       async (input: ShowPatternInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "show-pattern",
           patternType: input.patternType,
@@ -124,7 +125,7 @@ export function createDomainTools(ctx: ToolContext) {
           fretRange: input.fretRange,
           emphasis: input.emphasis,
         };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
 
         return {
           action: "show-pattern",
@@ -143,10 +144,8 @@ export function createDomainTools(ctx: ToolContext) {
     // ── show_interval (domain command) ─────────────────────────────
     tool(
       async (input: ShowIntervalInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = { type: "show-intervals", rootNote: input.rootNote, intervals: input.intervals };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
 
         return {
           action: "show-intervals",
@@ -164,9 +163,7 @@ export function createDomainTools(ctx: ToolContext) {
     // ── clear_view (domain command) ───────────────────────────────
     tool(
       async () => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
-        ctx.emitCommand({ type: "clear-view" });
+        await ctx.executeCommand({ type: "clear-view" });
         return {
           action: "clear-view",
         };
@@ -181,8 +178,6 @@ export function createDomainTools(ctx: ToolContext) {
     // ── get_current_view (query) ──────────────────────────────────
     tool(
       async () => {
-        const blocked = ctx.lessonGuard?.checkQuery();
-        if (blocked) return { error: blocked, action: "blocked" };
         const result = ctx.domainState;
         return {
           action: "get-current-view",
@@ -193,7 +188,7 @@ export function createDomainTools(ctx: ToolContext) {
       },
       {
         name: "get_current_view",
-        description: "Pobiera aktualny stan widoku gryfu",
+        description: "Pobiera aktualny stan widoku gryfu. UWAGA: DomainState to snapshot z początku requestu — po wykonaniu DomainCommand nie odzwierciedla nowego stanu.",
         schema: z.object({}),
       },
     ),
@@ -201,14 +196,12 @@ export function createDomainTools(ctx: ToolContext) {
     // ── compare_patterns (domain command) ──────────────────────────
     tool(
       async (input: ComparePatternsInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "compare-patterns",
           primary: input.primary,
           secondary: input.secondary,
         };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
 
         return {
           action: "compare-patterns",
@@ -226,15 +219,13 @@ export function createDomainTools(ctx: ToolContext) {
     // ── set_view (domain command) ──────────────────────────────────
     tool(
       async (input: SetViewInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "set-view",
           fretRange: input.fretRange,
           enabledStrings: input.enabledStrings,
           markerDisplayMode: input.markerDisplayMode,
         };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
         return {
           action: "set-view",
         };
@@ -249,13 +240,11 @@ export function createDomainTools(ctx: ToolContext) {
     // ── set_emphasis (domain command) ──────────────────────────────
     tool(
       async (input: SetEmphasisInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "set-emphasis",
           emphasis: input.emphasis,
         };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
         return {
           action: "set-emphasis",
           emphasis: input.emphasis,
@@ -271,14 +260,12 @@ export function createDomainTools(ctx: ToolContext) {
     // ── resolve_shape (domain command) ─────────────────────────────
     tool(
       async (input: ResolveShapeInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "resolve-shape",
           shapeId: input.shapeId,
           rootNote: input.rootNote,
         };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
 
         return {
           action: "resolve-shape",
@@ -296,13 +283,11 @@ export function createDomainTools(ctx: ToolContext) {
     // ── set_ai_mode (domain command) ───────────────────────────────
     tool(
       async (input: SetAiModeInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "set-ai-mode",
           enabled: input.enabled,
         };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
         return {
           action: "set-ai-mode",
           enabled: input.enabled,
@@ -318,28 +303,28 @@ export function createDomainTools(ctx: ToolContext) {
     // ── start_exercise (domain command) ────────────────────────────
     tool(
       async (input: StartExerciseInput) => {
-        const blocked = ctx.lessonGuard?.checkCommand();
-        if (blocked) return { error: blocked, action: "blocked" };
         const command: DomainCommand = {
           type: "start-exercise",
           question: input.question,
           rootNote: input.rootNote,
           expectedIntervals: input.expectedIntervals,
+          showIntervals: input.showIntervals,
           fretRange: input.fretRange,
           enabledStrings: input.enabledStrings,
         };
-        ctx.emitCommand(command);
+        await ctx.executeCommand(command);
 
         return {
           action: "start-exercise",
           question: input.question,
           rootNote: input.rootNote,
           expectedIntervals: input.expectedIntervals,
+          showIntervals: input.showIntervals,
         };
       },
       {
         name: "start_exercise",
-        description: "Rozpoczyna ćwiczenie w trybie lekcji. Aktywuje klikalny tryb na gryfie — użytkownik może zaznaczać nuty. Gdy skończy, kliknie Sprawdź. Użyj gdy prowadzisz lekcję i chcesz zadać pytanie typu 'znajdź wszystkie kwinty względem A'.",
+        description: "Rozpoczyna ćwiczenie w trybie lekcji. Aktywuje klikalny tryb na gryfie — użytkownik może zaznaczać nuty. Użyj showIntervals, aby pokazać punkt odniesienia (np. showIntervals: ['1'] pokaże nutę podstawową). Gdy skończy, kliknie Sprawdź. Użyj gdy prowadzisz lekcję i chcesz zadać pytanie typu 'znajdź wszystkie kwinty względem A'.",
         schema: startExerciseSchema,
       },
     ),
@@ -347,8 +332,6 @@ export function createDomainTools(ctx: ToolContext) {
     // ── get_exercise_result (query) ────────────────────────────────
     tool(
       async () => {
-        const blocked = ctx.lessonGuard?.checkQuery();
-        if (blocked) return { error: blocked, action: "blocked" };
         const state = ctx.domainState;
         const exerciseResult = state.lastExerciseResult;
         return {
@@ -362,7 +345,7 @@ export function createDomainTools(ctx: ToolContext) {
       },
       {
         name: "get_exercise_result",
-        description: "Pobiera wynik ostatniego ćwiczenia oraz aktualny stan trybu ćwiczeń. Użyj gdy chcesz sprawdzić co użytkownik zaznaczył lub jaki był wynik walidacji.",
+        description: "Pobiera wynik ostatniego ćwiczenia oraz aktualny stan trybu ćwiczeń. UWAGA: DomainState to snapshot z początku requestu — wynik pochodzi ze stanu dostarczonego przed rozpoczęciem bieżącego requestu.",
         schema: z.object({}),
       },
     ),

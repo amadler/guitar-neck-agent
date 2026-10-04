@@ -66,6 +66,7 @@ export interface StartExerciseCommand {
   question: string;
   rootNote: string;
   expectedIntervals: string[];
+  showIntervals?: string[];
   fretRange?: { min: number; max: number };
   enabledStrings?: boolean[];
 }

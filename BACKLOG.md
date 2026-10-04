@@ -46,6 +46,29 @@
   - Frontend: sidebar wątków, sugestie, markdown
 - **Blocked by:** Decyzja o migracji na DeepAgents SDK
 
+### [ ] Interleaved streaming — przeplatanie tokenów z domain commandami
+- **Problem:** Obecnie backend zbiera cały tekst odpowiedzi w jeden event `token` na końcu requestu. Domain commandy są emitowane wcześniej, ale nie są przeplatane z tekstem. Frontend nie może wyświetlić zsynchronizowanego wyjaśnienia z demonstracją (np. "zobacz A" → pokaż A → "teraz D" → pokaż D).
+- **Docelowe zachowanie:** Strumień eventów w kolejności chronologicznej: `token` → `domain-command` → `token` → `domain-command` → `interrupt` → `done`.
+- **Do zrobienia:**
+  - W `src/routes/chat.ts` emitować tokeny na bieżąco zamiast batchować do `finalText`
+  - Sprawdzić czy `deepagents` / LangGraph `stream.messages` daje dostęp do tokenów w trakcie generowania
+  - Frontend Angular musi umieć przetwarzać przeplatane eventy (nakładać command na gryf w trakcie wyświetlania tekstu)
+- **Blocked by:** Decyzja o priorytecie — zmiana po stronie backendu i frontendu
+
+## Lesson / Exercise Execution
+
+### [ ] Exercise initial state — showIntervals
+- **Problem:** Agent nie może zainicjować ćwiczenia z widocznym stanem na gryfie. Np. pyta "znajdź kwinty od A" ale nie pokazuje A na gryfie — uczeń nie ma punktu odniesienia.
+- **Plan:** [`plans/exercise-initial-state.md`](plans/exercise-initial-state.md)
+- **Rozwiązanie:** Dodać opcjonalne pole `showIntervals` do `StartExerciseCommand` — agent określa które interwały wyświetlić na gryfie na starcie ćwiczenia.
+- **Do zrobienia:**
+  - [`src/types/contract.ts`](src/types/contract.ts) — dodać `showIntervals?: string[]` do `StartExerciseCommand`
+  - [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts) — dodać `showIntervals` do schemy i handlera
+  - [`src/types/prompts.ts`](src/types/prompts.ts) — zaktualizować prompt by agent używał `showIntervals`
+  - [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts) — dodać testy
+  - **guitar-neck-ui** (frontend) — obsłużyć `showIntervals` w trybie ćwiczenia
+- **Blocked by:** Refaktor lesson execution (usunięcie LessonGuard) — aby agent mógł swobodnie wywoływać narzędzia przed `start_exercise`
+
 ## VPS Deployment
 
 ### [ ] Wdrożenie na VPS (Hetzner)
