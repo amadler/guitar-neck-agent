@@ -80,9 +80,9 @@ Tool sprawdza return value i zwraca `{ error, action: "blocked" }` zamiast crash
 
 ## Security
 
-### [ ] Fix npm audit vulnerabilities
-- **Status:** 5 vulnerabilities (3 moderate, 1 high, 1 critical)
-- **Action:** Run `npm audit` to identify specific packages, then `npm audit fix` or manual upgrades.
+### [x] Fix npm audit vulnerabilities
+- **Status:** 0 vulnerabilities — all fixed
+- **Action:** Upgraded `vitest` from `^2.0.0` to `^4.1.11`, `drizzle-kit` from `^0.31.10` to `^0.31.11`, added npm `overrides` for `esbuild` in `@esbuild-kit/core-utils`
 
 ## Backend Architecture (P1–P8)
 
