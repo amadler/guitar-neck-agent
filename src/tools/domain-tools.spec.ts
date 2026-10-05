@@ -27,7 +27,6 @@ function createMockContext(overrides?: Partial<DomainState>) {
 
   return {
     domainState,
-    emitCommand: (cmd: DomainCommand) => { emitted.push(cmd); },
     executeCommand,
     emitted,
   };

@@ -91,9 +91,6 @@ chatRouter.post("/", requireAuth, async (req, res) => {
 
   const ctx: AgentRunContext = {
     domainState: resolvedDomainState,
-    emitCommand: (command) => {
-      emit({ type: "domain-command", command });
-    },
     executeCommand,
   };
 

@@ -5,7 +5,6 @@ import { interrupt } from "@langchain/langgraph";
 
 interface ToolContext {
   domainState: DomainState;
-  emitCommand: (command: DomainCommand) => void;
   executeCommand: (command: DomainCommand) => Promise<void>;
 }
 

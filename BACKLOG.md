@@ -57,17 +57,30 @@
 
 ## Lesson / Exercise Execution
 
-### [ ] Exercise initial state — showIntervals
+### [x] Exercise initial state — showIntervals
 - **Problem:** Agent nie może zainicjować ćwiczenia z widocznym stanem na gryfie. Np. pyta "znajdź kwinty od A" ale nie pokazuje A na gryfie — uczeń nie ma punktu odniesienia.
 - **Plan:** [`plans/exercise-initial-state.md`](plans/exercise-initial-state.md)
-- **Rozwiązanie:** Dodać opcjonalne pole `showIntervals` do `StartExerciseCommand` — agent określa które interwały wyświetlić na gryfie na starcie ćwiczenia.
-- **Do zrobienia:**
-  - [`src/types/contract.ts`](src/types/contract.ts) — dodać `showIntervals?: string[]` do `StartExerciseCommand`
-  - [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts) — dodać `showIntervals` do schemy i handlera
-  - [`src/types/prompts.ts`](src/types/prompts.ts) — zaktualizować prompt by agent używał `showIntervals`
-  - [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts) — dodać testy
+- **Rozwiązanie:** Dodano opcjonalne pole `showIntervals` do `StartExerciseCommand` — agent określa które interwały wyświetlić na gryfie na starcie ćwiczenia.
+- **Zrobione:**
+  - [`src/types/contract.ts`](src/types/contract.ts) — dodano `showIntervals?: string[]` do `StartExerciseCommand`
+  - [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts) — dodano `showIntervals` do schemy i handlera
+  - [`src/types/prompts.ts`](src/types/prompts.ts) — zaktualizowano prompt by agent używał `showIntervals`
+  - [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts) — dodano testy
   - **guitar-neck-ui** (frontend) — obsłużyć `showIntervals` w trybie ćwiczenia
-- **Blocked by:** Refaktor lesson execution (usunięcie LessonGuard) — aby agent mógł swobodnie wywoływać narzędzia przed `start_exercise`
+- ~~**Blocked by:** Refaktor lesson execution (usunięcie LessonGuard)~~ — odblokowane, refaktor wdrożony
+
+### [x] Refaktor lesson execution — usunięcie LessonGuard
+- **Plan:** [`plans/refactor-lesson-execution.md`](plans/refactor-lesson-execution.md)
+- **Zrobione:**
+  - Usunięto `src/lesson-guard.ts` i `src/lesson-guard.spec.ts`
+  - Dodano command sequencer (promise queue) w `src/routes/chat.ts`
+  - Dodano `executeCommand` do `ToolContext` i `AgentRunContext`
+  - Wszystkie tooli używają `await ctx.executeCommand(command)` zamiast `emitCommand`
+  - Dodano `interactionDensity` config (`frequent` / `balanced` / `mostly-teach`)
+  - Walidacja `LESSON_INTERACTION_DENSITY` przy starcie w `src/index.ts`
+  - Iniekcja `{{interactionDensity}}` do `LESSON_SYSTEM_PROMPT`
+  - Usunięto `emitCommand` jako dead code (cleanup)
+  - Testy: 13/13 pass (multi-command, ordering, snapshot semantics)
 
 ## VPS Deployment
 

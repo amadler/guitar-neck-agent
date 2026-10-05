@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-05 — Refaktor lesson execution + cleanup emitCommand
+
+### Refaktor lesson execution
+- **Cel:** Usunięcie `LessonGuard` (one-command-per-round), umożliwienie wielu sekwencyjnych komend w lesson mode, dodanie konfiguracji gęstości interakcji.
+- **Zmiany:**
+  - Usunięto [`src/lesson-guard.ts`](src/lesson-guard.ts) i [`src/lesson-guard.spec.ts`](src/lesson-guard.spec.ts) — cały mechanizm guarda usunięty
+  - Dodano **command sequencer** (promise queue) w [`src/routes/chat.ts`](src/routes/chat.ts) — gwarantuje deterministyczną kolejność emisji przy równoległych tool callach LLM
+  - Dodano `executeCommand` do [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts) i [`src/agent.ts`](src/agent.ts) — wszystkie tooli używają `await ctx.executeCommand(command)`
+  - Dodano `interactionDensity` config (`frequent` / `balanced` / `mostly-teach`) — walidacja w [`src/index.ts`](src/index.ts), iniekcja do `LESSON_SYSTEM_PROMPT` w [`src/agent.ts`](src/agent.ts)
+  - Zaktualizowano testy w [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts) — usunięto guard tests, dodano multi-command, ordering, snapshot-semantics (13 testów)
+
+### Cleanup: usunięcie dead code — emitCommand
+- `emitCommand` był zdefiniowany w `AgentRunContext` i `ToolContext`, ale żaden tool go nie wołał — wszystkie szły przez `executeCommand`.
+- Usunięto z 4 plików: [`src/agent.ts`](src/agent.ts), [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts), [`src/routes/chat.ts`](src/routes/chat.ts), [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts)
+
+---
+
 ## 2026-10-04 — Weryfikacja planów i archiwizacja
 
 Zweryfikowano wszystkie 8 planów względem kodu. Zaktualizowano BACKLOG i zarchiwizowano zrealizowane plany.

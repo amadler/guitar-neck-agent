@@ -28,7 +28,6 @@ async function getCheckpointer(): Promise<PostgresSaver> {
 
 export interface AgentRunContext {
   domainState: DomainState;
-  emitCommand: (command: DomainCommand) => void;
   executeCommand: (command: DomainCommand) => Promise<void>;
 }
 
@@ -47,7 +46,6 @@ export async function createAgent(
 
   const domainTools = createDomainTools({
     domainState: ctx.domainState,
-    emitCommand: ctx.emitCommand,
     executeCommand: ctx.executeCommand,
   });
 
