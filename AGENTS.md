@@ -17,4 +17,12 @@ This repository includes local skills in [`.roo/skills/`](.roo/skills) that agen
 - **Single quotes** for TypeScript (`.editorconfig`), double quotes for HTML templates
 - **2-space indentation**, UTF-8, final newline
 - **Strict TypeScript** (`strict: true`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`)
-- **Interfaces over types** for domain models (see `DomainState`, `DomainCommand`, `DomainQuery`)
+
+## Environment
+
+- **Platform:** Windows 10 (win32)
+- **Shell:** `cmd.exe` (default). Use `cmd` for all shell commands — do NOT use PowerShell or Python.
+- **Package manager:** npm (comes with Node.js)
+- **Node.js:** 20+ (required by project)
+- **Docker:** Available via `docker compose` (for PostgreSQL)
+- **No sandbox** — this is a local Windows machine, not a sandbox or container.

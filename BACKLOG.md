@@ -85,7 +85,7 @@
 ## VPS Deployment
 
 ### [ ] Wdrożenie na VPS (Hetzner)
-- **Plan:** [`plans/vps-deployment-plan.md`](plans/vps-deployment-plan.md) — kompletny blueprint wdrożenia.
+- **Plan:** [`plans/vps-deployment-plan.md`](plans/vps-deployment-plan.md) — kompletny blueprint wdrożenia (odtworzony z git history).
 - **Stan:** Infrastruktura deweloperska (Docker Compose, Caddy, Dockerfile) gotowa. VPS nie utworzony.
 - **Do zrobienia:**
   - Utworzenie VPS CX21 w Hetzner
