@@ -61,12 +61,12 @@
 - **Problem:** Agent nie może zainicjować ćwiczenia z widocznym stanem na gryfie. Np. pyta "znajdź kwinty od A" ale nie pokazuje A na gryfie — uczeń nie ma punktu odniesienia.
 - **Plan:** [`plans/exercise-initial-state.md`](plans/exercise-initial-state.md)
 - **Rozwiązanie:** Dodano opcjonalne pole `showIntervals` do `StartExerciseCommand` — agent określa które interwały wyświetlić na gryfie na starcie ćwiczenia.
-- **Zrobione:**
+- **Backend (zrobione):**
   - [`src/types/contract.ts`](src/types/contract.ts) — dodano `showIntervals?: string[]` do `StartExerciseCommand`
   - [`src/tools/domain-tools.ts`](src/tools/domain-tools.ts) — dodano `showIntervals` do schemy i handlera
   - [`src/types/prompts.ts`](src/types/prompts.ts) — zaktualizowano prompt by agent używał `showIntervals`
   - [`src/tools/domain-tools.spec.ts`](src/tools/domain-tools.spec.ts) — dodano testy
-  - **guitar-neck-ui** (frontend) — obsłużyć `showIntervals` w trybie ćwiczenia
+- **Frontend (guitar-neck-ui):** Plan w [`plans/frontend-showIntervals.md`](plans/frontend-showIntervals.md) — implementacja trackowana w repo frontendowym
 - ~~**Blocked by:** Refaktor lesson execution (usunięcie LessonGuard)~~ — odblokowane, refaktor wdrożony
 
 ### [x] Refaktor lesson execution — usunięcie LessonGuard
@@ -103,15 +103,14 @@
 
 **Źródło:** [`C:\code\Guitar-neck-app\Guitar neck UI\plans\ux-ui-audit-2026-10-05.md`](file:///C:/code/Guitar-neck-app/Guitar%20neck%20UI/plans/ux-ui-audit-2026-10-05.md)
 
-### [ ] Markdown content type w odpowiedziach AI
+### [x] Markdown content type w odpowiedziach AI
 
 - **Problem:** Frontend nie wie, czy treść wiadomości AI zawiera Markdown do renderowania, czy czysty tekst. Obecnie wszystkie wiadomości są wysyłane jako `text/plain`, przez co frontend nie może automatycznie zastosować renderowania Markdown.
 - **Rozwiązanie:** Dodać opcjonalne pole `contentType` do odpowiedzi AI (`"text/markdown"` lub `"text/plain"`). Frontend użyje go do wyboru renderowania. Backend nie zmienia treści — nadal wysyła Markdown od AI, ale z jawnym oznaczeniem formatu.
-- **Do zrobienia:**
-  - Dodać `contentType?: 'text/markdown' | 'text/plain'` do typu odpowiedzi w `src/types/contract.ts`
-  - Ustawić `contentType: 'text/markdown'` w `src/routes/chat.ts` przy odpowiedzi AI
-  - Dodać test w `src/routes/chat.spec.ts` — odpowiedź zawiera `contentType`
-- **Blocked by:** —
+- **Zrobione:**
+  - [`src/types/contract.ts`](src/types/contract.ts#L166) — `contentType?: 'text/markdown' | 'text/plain'` w `ChatResponseEvent`
+  - [`src/routes/chat.ts`](src/routes/chat.ts#L141) — `contentType: 'text/markdown'` przy odpowiedzi AI
+  - [`src/routes/chat.spec.ts`](src/routes/chat.spec.ts) — 2 testy: z contentType i bez (backward compat)
 
 ### [ ] Struktura lekcji jako sekwencja krok po kroku
 
