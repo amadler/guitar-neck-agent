@@ -96,3 +96,31 @@
   - Konfiguracja DNS (api.gitarneck.pl, n8n.gitarneck.pl → IP VPS)
   - Wdrożenie stacka + migracja bazy
   - Automatyczne backupy + monitoring
+
+---
+
+## UX Audit 2026-10-05
+
+**Źródło:** [`C:\code\Guitar-neck-app\Guitar neck UI\plans\ux-ui-audit-2026-10-05.md`](file:///C:/code/Guitar-neck-app/Guitar%20neck%20UI/plans/ux-ui-audit-2026-10-05.md)
+
+### [ ] Markdown content type w odpowiedziach AI
+
+- **Problem:** Frontend nie wie, czy treść wiadomości AI zawiera Markdown do renderowania, czy czysty tekst. Obecnie wszystkie wiadomości są wysyłane jako `text/plain`, przez co frontend nie może automatycznie zastosować renderowania Markdown.
+- **Rozwiązanie:** Dodać opcjonalne pole `contentType` do odpowiedzi AI (`"text/markdown"` lub `"text/plain"`). Frontend użyje go do wyboru renderowania. Backend nie zmienia treści — nadal wysyła Markdown od AI, ale z jawnym oznaczeniem formatu.
+- **Do zrobienia:**
+  - Dodać `contentType?: 'text/markdown' | 'text/plain'` do typu odpowiedzi w `src/types/contract.ts`
+  - Ustawić `contentType: 'text/markdown'` w `src/routes/chat.ts` przy odpowiedzi AI
+  - Dodać test w `src/routes/chat.spec.ts` — odpowiedź zawiera `contentType`
+- **Blocked by:** —
+
+### [ ] Struktura lekcji jako sekwencja krok po kroku
+
+- **Problem:** Obecnie AI prowadzi lekcję w formie swobodnej rozmowy. Instrukcja ćwiczenia, wyjaśnienie i pytanie mieszają się w historii czatu. Uczeń nie zawsze wie, czy ma czytać, klikać nuty, czy odpowiadać.
+- **Plan:** [`plans/lesson-sequence-redesign.md`](plans/lesson-sequence-redesign.md) (w repo frontendowym)
+- **Rozwiązanie:** Zdefiniować strukturę odpowiedzi AI w trybie lekcji jako sekwencję: **cel → krótkie wyjaśnienie → interakcja na gryfie → informacja zwrotna → następny krok**. Wymaga zmian w prompcie systemowym (`src/types/prompts.ts`) oraz potencjalnie w strukturze eventów.
+- **Do zrobienia:**
+  - Zaktualizować `LESSON_SYSTEM_PROMPT` w `src/types/prompts.ts` — dodać instrukcję strukturyzowania odpowiedzi jako sekwencji kroków
+  - Dodać opcjonalne pole `step?: { type: 'explain' | 'exercise' | 'feedback' | 'next'; label: string }` do eventów
+  - Frontend: wyświetlić aktywny krok w osobnym panelu (nie w czacie)
+  - Testy: sprawdzić czy odpowiedzi AI zawierają strukturę kroków
+- **Blocked by:** Frontendowa implementacja panelu lekcji (P26 w BACKLOG.md frontendu)
