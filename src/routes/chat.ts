@@ -2,7 +2,7 @@ import { Router } from "express";
 import { HumanMessage } from "@langchain/core/messages";
 import { Command } from "@langchain/langgraph";
 import { createAgent, type AgentRunContext } from "../agent.js";
-import type { ChatRequestBody, ChatResponseEvent, DomainState } from "../types/contract.js";
+import type { ChatRequestBody, ChatResponseEvent, DomainCommand, DomainState } from "../types/contract.js";
 import { requireAuth } from "../auth/middleware.js";
 import { db } from "../db/client.js";
 import { chatThreads } from "../db/schema/chat_threads.js";
@@ -138,6 +138,7 @@ chatRouter.post("/", requireAuth, async (req, res) => {
       emit({
         type: "token",
         text: finalText,
+        contentType: 'text/markdown',
       });
     }
 

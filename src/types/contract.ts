@@ -163,7 +163,7 @@ export interface ChatRequestBody {
 }
 
 export type ChatResponseEvent =
-  | { type: "token"; text: string }
+  | { type: "token"; text: string; contentType?: 'text/markdown' | 'text/plain' }
   | { type: "domain-command"; command: DomainCommand }
   | { type: "interrupt"; waitingForUser: boolean }
   | { type: "error"; message: string }

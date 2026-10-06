@@ -12,8 +12,9 @@ import { progressRouter } from "./progress/routes.js";
 // ─── Startup validation ────────────────────────────────────────────────
 
 const VALID_DENSITIES = ["frequent", "balanced", "mostly-teach"] as const;
-const interactionDensity = process.env.LESSON_INTERACTION_DENSITY ?? "balanced";
-if (!VALID_DENSITIES.includes(interactionDensity)) {
+const interactionDensity: (typeof VALID_DENSITIES)[number] | undefined =
+  VALID_DENSITIES.find(d => d === (process.env.LESSON_INTERACTION_DENSITY ?? "balanced"));
+if (!interactionDensity) {
   console.error(
     `Invalid LESSON_INTERACTION_DENSITY: "${interactionDensity}". ` +
     `Must be one of: ${VALID_DENSITIES.join(", ")}`,
